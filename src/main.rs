@@ -1,9 +1,18 @@
+use std::fmt;
+use std::path::PathBuf;
+use std::fs::File;
+use std::io::{BufReader, BufRead};
+use std::env;
+use std::collections::HashMap;
+
 use chrono::{
     Datelike, 
     NaiveDate,
     DateTime,
     Utc,
 };
+
+use rusqlite::{Connection, Result};
 
 #[derive(Debug)]
 struct MonthDay {
@@ -14,13 +23,34 @@ struct MonthDay {
 #[derive(Debug)]
 struct Category {
     primary: String,
-    secondary: String
+    secondary: Option<String>,
 }
 
 impl Category {
     fn parse_from_str(category_str: &str) -> Category {
         let parts: Vec<&str> = category_str.split("/").collect();
-        Category { primary: parts[0].to_string(), secondary: parts[1].to_string() }
+        Category { 
+            primary: parts[0].to_string(), 
+            secondary: if parts.len() >= 2 { Some(parts[1].to_string()) } else { None }
+        }
+    }
+
+    fn new_from_database_row(primary_column: String, secondary_column: Option<String>) -> Category {
+        Category {
+            primary: primary_column,
+            secondary: secondary_column
+        }
+    }
+}
+
+impl fmt::Display for Category {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut secondary_part = "".to_string();
+        if let Some(secondary) = &self.secondary {
+            secondary_part.push('/');
+            secondary_part.push_str(&secondary);
+        }
+        write!(f, "{}{}", self.primary, secondary_part)
     }
 }
 
@@ -47,6 +77,137 @@ impl Event {
     }
 }
 
+impl fmt::Display for Event {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Event::Singular { date, description, category } => 
+                write!(f, "{}: {} ({})", date.year(), description, category),
+            Event::Annual { month_day: _, description, category } => 
+                write!(f, "{} ({})", description, category),
+        }
+    }
+}
+
+trait EventProvider {
+    fn get_events(&self) -> Vec<Event>;
+    fn identifier(&self) -> String;
+}
+
+struct CSVEventProvider {
+    filename: PathBuf,
+    identifier: String,
+}
+
+impl CSVEventProvider {
+    fn new(filename: PathBuf, identifier: String) -> Self {
+        CSVEventProvider { filename, identifier }
+    }
+
+    // Internal method to read events from CSV file
+    fn read_events(&self) -> Vec<Event> {
+        //let file = File::open(self.filename)?;
+        //let mut reader = csv::Reader::from_reader(file);
+
+        let mut result: Vec<Event> = vec![];
+        //for rec in reader.records() {
+            //let record = rec?;
+            //result.push(record);
+        //}
+
+        return result;
+    }
+}
+
+impl EventProvider for CSVEventProvider {
+    fn get_events(&self) -> Vec<Event> {
+        let result = self.read_events();
+
+        return result;
+    }
+
+    fn identifier(&self) -> String {
+        return self.identifier.clone();
+    }
+}
+
+struct TextFileEventProvider {
+    filename: PathBuf,
+    identifier: String,
+}
+
+enum ReadingState {
+    Date,
+    Description,
+    Category,
+    Blank,
+    Done
+}
+
+impl TextFileEventProvider {
+    fn new(filename: PathBuf, identifier: String) -> Self {
+        TextFileEventProvider { filename, identifier }
+    }
+
+    // Internal method to read events from text file
+    fn read_events(&self, pathname: &PathBuf) -> Vec<Event> {
+        let mut state = ReadingState::Date;
+
+        let f = File::open(pathname).unwrap();  // will panic if file not found
+        let mut reader = BufReader::new(f);
+
+        let mut line: String = Default::default();
+        let mut date_string: String = Default::default();
+        let mut description_string: String = Default::default();
+        let mut category_string: String = Default::default();
+        let mut event: Event;
+        let mut events: Vec<Event> = vec![];
+
+        loop {
+            if reader.read_line(&mut line).unwrap() == 0 { // end of file
+                state = ReadingState::Done;
+            }
+
+            match state {
+                ReadingState::Date => {
+                    date_string = line.trim().to_string();
+                    state = ReadingState::Description;
+                },
+                ReadingState::Description => {
+                    description_string = line.trim().to_string();
+                    state = ReadingState::Category;
+                },
+                ReadingState::Category => {
+                    category_string = line.trim().to_string();
+                    state = ReadingState::Blank;
+                },
+                ReadingState::Blank => {
+                    event = Event::new(&date_string, &description_string, &category_string);
+                    events.push(event);
+                    state = ReadingState::Date;
+                },
+                ReadingState::Done => { break },
+            };
+
+            line.clear();  // avoid appending after the previous line
+        }    
+
+        return events;
+    }
+}
+
+impl EventProvider for TextFileEventProvider {
+    fn get_events(&self) -> Vec<Event> {
+        let result = self.read_events(&self.filename);
+
+        return result;
+    }
+
+    fn identifier(&self) -> String {
+        return self.identifier.clone();
+    }
+}
+
+
 fn main() {
     let events = vec![
         Event::new("2001-04-07", "NASA launches the 2001 Mars Odyssey orbiter", "space/nasa"),
@@ -55,18 +216,104 @@ fn main() {
     ];
 
     let now = chrono::Utc::now();
+
+    // With regular for loop:
+    /*
     for event in events {
         if is_same_day(&event, &now) {
-            match event {
-                Event::Singular { date, description, category } => {
-                    println!("{}: {} ({}/{})", date.year(), description, category.primary, category.secondary);
-                },
-                Event::Annual { month_day: _, description, category } => {
-                    println!("{} ({}/{})", description, category.primary, category.secondary);
-                }
-            }
+            println!("{}", event);
         }
     }
+    */
+    
+    // With iterator and filter:
+    for event in events.iter().filter(|event| is_same_day(&event, &now)) {
+        println!("{}", event);
+    }
+
+    let provider = TextFileEventProvider::new("/Users/jere/.today/events.txt".into(), "textfile".to_string());
+    let events = provider.get_events();
+    for event in &events {
+        println!("{}", event);
+    }
+    println!("Number of events: {}", events.len());
+
+    if let Some(database_events) = read_events_sqlite() {
+        /*
+        for db_event in database_events {
+            println!("{}", db_event);
+        }
+         */
+        println!("Got {} events from SQLite database", database_events.len());
+    }
+
+}
+
+fn read_categories_sqlite(conn: &Connection) -> Result<HashMap<i32, Category>, rusqlite::Error> {
+    let mut categories: HashMap<i32, Category> = HashMap::new();
+
+    let mut stmt = conn.prepare("SELECT category_id, primary_name, secondary_name from category").unwrap();
+    let mut rows = stmt.query([])?;
+
+    while let Some(row) = rows.next()? {
+        categories.insert(row.get(0)?, Category { primary: row.get(1)?, secondary: row.get(2)? });
+    }
+
+    Ok(categories)
+}
+
+fn query_events(conn: &Connection, categories: &HashMap<i32, Category>) -> Result<Vec<Event>, rusqlite::Error> {
+    let mut events: Vec<Event> = vec![];
+
+    let mut stmt = conn.prepare("SELECT event_date, event_description, category_id FROM event")?;
+    let mut rows = stmt.query([])?;
+    while let Some(row) = rows.next()? {
+        let category_id: i32 = row.get(2)?;
+        let category = categories.get(&category_id).unwrap();
+        let date_string: String = row.get(0)?;
+        let description_string: String = row.get(1)?;
+        events.push(Event::new(&date_string, &description_string, format!("{}", category).as_str()));
+    }
+
+    Ok(events)
+}
+
+fn read_events_sqlite() -> Option<Vec<Event>> {
+    let mut result: Vec<Event> = vec![];
+
+    let home_dir_result = env::home_dir();
+    let home_dir: PathBuf;
+    match home_dir_result {
+        Some(dir) => home_dir = dir,
+        None => return Some(result),
+    }
+
+    let path = home_dir.as_path().join(".today/events.sqlite3");
+    let conn = Connection::open(path).unwrap();
+
+    let mut category_map: HashMap<i32, Category> = HashMap::new();
+
+    match read_categories_sqlite(&conn) {
+        Ok(categories) => {
+            println!("Got {} categories from SQLite database", categories.len());
+            for category in &categories {
+                println!("{}: {}", category.0, category.1);
+            }
+            match query_events(&conn, &categories) {
+                Ok(events) => result = events,
+                Err(err) => {
+                    eprintln!("Error reading events: {}", err);
+                    return Some(result);
+                }
+            }
+        },
+        Err(err) => {
+            eprintln!("Error reading categories: {}", err);
+            return Some(result);
+        }
+    }
+
+    Some(result)
 }
 
 fn is_same_day(event: &Event, date: &DateTime<Utc>) -> bool {
