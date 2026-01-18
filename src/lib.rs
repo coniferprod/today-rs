@@ -9,6 +9,7 @@ use serde::Deserialize;
 use crate::events::{Event, Category, MonthDay};
 use crate::providers::{EventProvider, SimpleProvider};
 use crate::providers::textfile::TextFileProvider;
+use crate::providers::csvfile::CSVFileProvider;
 
 #[derive(Deserialize, Debug)]
 pub struct ProviderConfig {
@@ -35,6 +36,11 @@ pub fn run(config: &Config, config_path: &Path) -> Result<(), Box<dyn Error>> {
                 let provider = TextFileProvider::new(&cfg.name, &path);
                 providers.push(Box::new(provider));
             },
+            "csv" => {
+                let path = config_path.join(&cfg.resource);
+                let provider = CSVFileProvider::new(&cfg.name, &path);
+                providers.push(Box::new(provider));
+            }
             _ => {
                 eprintln!("Unable to make provider: {:?}", cfg);
             }

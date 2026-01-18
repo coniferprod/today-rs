@@ -2,6 +2,7 @@ use chrono::{NaiveDate, Local};
 use crate::events::{Event, Category};
 
 pub mod textfile;
+pub mod csvfile;
 
 pub trait EventProvider {
     fn name(&self) -> String;
