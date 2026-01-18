@@ -10,6 +10,7 @@ use crate::events::{Event, Category, MonthDay};
 use crate::providers::{EventProvider, SimpleProvider};
 use crate::providers::textfile::TextFileProvider;
 use crate::providers::csvfile::CSVFileProvider;
+use crate::providers::sqlite::SQLiteProvider;
 
 #[derive(Deserialize, Debug)]
 pub struct ProviderConfig {
@@ -30,15 +31,18 @@ pub fn run(config: &Config, config_path: &Path) -> Result<(), Box<dyn Error>> {
     // Put them in a vector of trait objects.
     let mut providers: Vec::<Box<dyn EventProvider>> = Vec::new();
     for cfg in config.providers.iter() {
+        let path = config_path.join(&cfg.resource);
         match cfg.kind.as_str() {
             "text" => {
-                let path = config_path.join(&cfg.resource);
                 let provider = TextFileProvider::new(&cfg.name, &path);
                 providers.push(Box::new(provider));
             },
             "csv" => {
-                let path = config_path.join(&cfg.resource);
                 let provider = CSVFileProvider::new(&cfg.name, &path);
+                providers.push(Box::new(provider));
+            },
+            "sqlite" => {
+                let provider = SQLiteProvider::new(&cfg.name, &path);
                 providers.push(Box::new(provider));
             }
             _ => {
@@ -74,10 +78,12 @@ pub fn run(config: &Config, config_path: &Path) -> Result<(), Box<dyn Error>> {
         }
     }
 
+    /*
     println!("\nAll events from all providers:");
     for event in &events {
         println!("{}", event);
     }
+    */
 
     Ok(())
 }
