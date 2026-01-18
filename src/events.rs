@@ -42,6 +42,15 @@ impl Category {
             secondary: None
         }
     }
+
+    pub fn from_str(s: &str) -> Category {
+        let parts: Vec<&str> = s.split("/").collect();
+        if parts.len() < 2 {
+            Category { primary: parts[0].to_string(), secondary: None }
+        } else {
+            Category { primary: parts[0].to_string(), secondary: Some(parts[1].to_string()) }
+        }
+    }
 }
 
 impl fmt::Display for Category {

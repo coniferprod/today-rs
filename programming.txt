@@ -1,0 +1,16 @@
+2015-05-15
+Rust 1.0.0 released
+programming/rust
+
+1996-01-23
+JDK 1.0 released
+programming/java
+
+2008-12-03
+Python 3.0 released
+programming/python
+
+2025-12-11
+Rust 1.92.0 released
+programming/rust
+
