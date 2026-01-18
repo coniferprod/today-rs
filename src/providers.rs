@@ -1,5 +1,5 @@
 use chrono::{NaiveDate, Local};
-use crate::{Event, Category};
+use crate::events::{Event, Category};
 
 pub trait EventProvider {
     fn name(&self) -> String;
