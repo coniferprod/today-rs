@@ -11,6 +11,7 @@ use crate::providers::{EventProvider, SimpleProvider};
 use crate::providers::textfile::TextFileProvider;
 use crate::providers::csvfile::CSVFileProvider;
 use crate::providers::sqlite::SQLiteProvider;
+use crate::providers::web::WebProvider;
 
 #[derive(Deserialize, Debug)]
 pub struct ProviderConfig {
@@ -43,6 +44,10 @@ pub fn run(config: &Config, config_path: &Path) -> Result<(), Box<dyn Error>> {
             },
             "sqlite" => {
                 let provider = SQLiteProvider::new(&cfg.name, &path);
+                providers.push(Box::new(provider));
+            },
+            "web" => {
+                let provider = WebProvider::new(&cfg.name, &cfg.resource);
                 providers.push(Box::new(provider));
             }
             _ => {
