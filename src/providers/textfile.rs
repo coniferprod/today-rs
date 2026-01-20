@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{BufReader, BufRead};
 use std::fmt;
 
-use chrono::NaiveDate;
+//use chrono::NaiveDate;
 
 use crate::EventProvider;
 use crate::events::{Event, Category};
@@ -67,7 +67,7 @@ impl EventProvider for TextFileProvider {
                     state = ReadingState::Separator;
                 },
                 ReadingState::Separator => {
-                    match NaiveDate::parse_from_str(&date_string, "%F") {
+                    match chrono::NaiveDate::parse_from_str(&date_string, "%F") {
                         Ok(date) => {
                             let category = Category::from_str(&category_string);
                             let event = Event::new_singular(date, description.clone(), category);

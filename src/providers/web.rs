@@ -5,6 +5,7 @@ use chrono::{NaiveDate, Datelike, Local};
 use reqwest::{blocking::Client, blocking::Response};
 use serde::Deserialize;
 use serde_json;
+use bitflags::bitflags_match;
 
 use crate::events::{Event, Category, MonthDay};
 use crate::providers::EventProvider;
@@ -36,11 +37,20 @@ impl EventProvider for WebProvider {
         self.name.clone()
     }
 
-    fn get_events(&self, filter: &EventFilter, events: &mut Vec<Event>) {            
-        let today: NaiveDate = Local::now().date_naive();
-        let date_parameter = format!("date={:02}-{:02}", today.month(), today.day());
-        let url = format!("{}?{}", &self.url, date_parameter);
+    fn get_events(&self, filter: &EventFilter, events: &mut Vec<Event>) {
+        // We need a date parameter for the URL, so if the filter
+        // does not specify it, we are done.
+        if let None = filter.month_day() {
+            eprintln!("Need a month-day for the URL parameter `date`");
+            return;
+        }
 
+        let month_day = filter.month_day().unwrap();
+        let date_parameter = format!(
+            "date={:02}-{:02}", 
+            month_day.month(), 
+            month_day.day());
+        let url = format!("{}?{}", &self.url, date_parameter);
         println!("web URL = {}", &url);
 
         let client = Client::new();
@@ -60,11 +70,12 @@ impl EventProvider for WebProvider {
         //eprintln!("JSON = {:?}", json);
 
         for json_event in json_events {
-            let date = NaiveDate::parse_from_str(&json_event.date, "%F").unwrap();
+            let date = NaiveDate::parse_from_str(&json_event.date, "%F").unwrap();            
             let category = Category::from_str(&json_event.category);
             let event = Event::new_singular(date, json_event.description, category);
-            //println!("Event created from web: |{}|", event);
-            events.push(event);
+            if filter.accepts(&event) {
+                events.push(event);
+            }
         }
     }
 }
