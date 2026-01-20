@@ -4,6 +4,7 @@ use csv::ReaderBuilder;
 
 use crate::EventProvider;
 use crate::events::{Event, Category};
+use crate::filters::EventFilter;
 
 pub struct CSVFileProvider {
     name: String,
@@ -21,7 +22,7 @@ impl EventProvider for CSVFileProvider {
         self.name.clone()
     }
 
-    fn get_events(&self, events: &mut Vec<Event>) {
+    fn get_events(&self, filter: &EventFilter, events: &mut Vec<Event>) {
         let mut reader = ReaderBuilder::new()
             .has_headers(false)
             .from_path(self.path.clone()).expect("existing CSV file");
@@ -40,8 +41,10 @@ impl EventProvider for CSVFileProvider {
                         date,
                         description.clone(),
                         category);
-                    println!("Event created from CSV: |{}|", event);
-                    events.push(event);
+                    //println!("Event created from CSV: |{}|", event);
+                    if filter.accepts(&event) {
+                        events.push(event);
+                    }
                 },
                 Err(_) => {
                     eprintln!("Invalid timestamp '{}'", date_string);

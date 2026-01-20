@@ -1,6 +1,7 @@
 mod birthday;
 mod events;
 mod providers;
+mod filters;
 
 use std::error::Error;
 use std::path::{Path, PathBuf};
@@ -12,6 +13,7 @@ use crate::providers::textfile::TextFileProvider;
 use crate::providers::csvfile::CSVFileProvider;
 use crate::providers::sqlite::SQLiteProvider;
 use crate::providers::web::WebProvider;
+use crate::filters::{EventFilter, FilterBuilder};
 
 #[derive(Deserialize, Debug)]
 pub struct ProviderConfig {
@@ -61,10 +63,16 @@ pub fn run(config: &Config, config_path: &Path) -> Result<(), Box<dyn Error>> {
 
     let mut events: Vec<Event> = Vec::new();
 
-    // Collect all events from all providers
+    let filter: EventFilter = FilterBuilder::new().build();
+
+    let today: NaiveDate = Local::now().date_naive();
+    let filter: EventFilter = FilterBuilder::new()
+        .month_day(MonthDay::new(today.month(), today.day()))
+        .build();
+
     let mut count = 0;
     for provider in providers {
-        provider.get_events(&mut events);  // polymorphism!
+        provider.get_events(&filter, &mut events);  // polymorphism!
         let new_count = events.len();
         println!(
             "Got {} events from provider '{}'", 
@@ -73,22 +81,16 @@ pub fn run(config: &Config, config_path: &Path) -> Result<(), Box<dyn Error>> {
         count = new_count;
     }
 
-    let today: NaiveDate = Local::now().date_naive();
-    let today_month_day = MonthDay::new(today.month(), today.day());
-
-    println!("\nEvents for today:");
+    // Now we only have events that have already been filtered for today,
+    // but we exclude "test/fake":
+    println!("\nEvents for today (no test/fake category):");
+    let test_fake_category = Category::new("test", "fake");
     for event in &events {
-        if today_month_day == event.month_day() {
-            println!("{}", event);
+        if event.category() == test_fake_category {
+            continue;
         }
-    }
-
-    /*
-    println!("\nAll events from all providers:");
-    for event in &events {
         println!("{}", event);
     }
-    */
 
     Ok(())
 }

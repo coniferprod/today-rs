@@ -1,5 +1,6 @@
 mod events;
 mod providers;
+mod filters;
 
 use std::fs;
 use std::path::PathBuf;

@@ -8,6 +8,7 @@ use serde_json;
 
 use crate::events::{Event, Category, MonthDay};
 use crate::providers::EventProvider;
+use crate::filters::EventFilter;
 
 pub struct WebProvider {
     name: String,
@@ -35,7 +36,7 @@ impl EventProvider for WebProvider {
         self.name.clone()
     }
 
-    fn get_events(&self, events: &mut Vec<Event>) {            
+    fn get_events(&self, filter: &EventFilter, events: &mut Vec<Event>) {            
         let today: NaiveDate = Local::now().date_naive();
         let date_parameter = format!("date={:02}-{:02}", today.month(), today.day());
         let url = format!("{}?{}", &self.url, date_parameter);
@@ -53,7 +54,7 @@ impl EventProvider for WebProvider {
         }
 
         let json_events = response.json::<Vec<JSONEvent>>().unwrap();
-        println!("Got {} events from JSON", json_events.len());
+        //println!("Got {} events from JSON", json_events.len());
 
         //println!("body = {:?}", response.text().unwrap());
         //eprintln!("JSON = {:?}", json);
@@ -62,7 +63,7 @@ impl EventProvider for WebProvider {
             let date = NaiveDate::parse_from_str(&json_event.date, "%F").unwrap();
             let category = Category::from_str(&json_event.category);
             let event = Event::new_singular(date, json_event.description, category);
-            println!("Event created from web: |{}|", event);
+            //println!("Event created from web: |{}|", event);
             events.push(event);
         }
     }

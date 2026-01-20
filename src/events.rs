@@ -2,7 +2,7 @@ use std::fmt;
 
 use chrono::{NaiveDate, Datelike};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct MonthDay {
     month: u32,
     day: u32,
@@ -20,9 +20,12 @@ impl MonthDay {
         let day: u32 = s[2..].parse().unwrap();
         MonthDay { month, day }
     }
+
+    pub fn month(&self) -> u32 { self.month }
+    pub fn day(&self) -> u32 { self.day }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Category {
     primary: String,
     secondary: Option<String>,
@@ -94,7 +97,15 @@ impl Event {
             EventKind::Singular(date) => 
                 MonthDay { month: date.month(), day: date.day() },
         }
-    }    
+    } 
+
+    pub fn category(&self) -> Category {
+        self.category.clone()
+    }
+
+    pub fn description(&self) -> String {
+        self.description.clone()
+    }
 }
 
 impl fmt::Display for Event {

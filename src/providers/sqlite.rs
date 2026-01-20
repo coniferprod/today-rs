@@ -3,9 +3,11 @@ use std::collections::HashMap;
 
 use sqlite::{Connection, State};
 use chrono::{NaiveDate, Datelike, Local};
+use bitflags::bitflags_match;
 
 use crate::events::{Event, Category, MonthDay};
 use crate::providers::EventProvider;
+use crate::filters::{EventFilter, FilterFlags};
 
 pub struct SQLiteProvider {
     name: String,
@@ -19,6 +21,77 @@ impl SQLiteProvider {
             path: path.to_path_buf() 
         }
     }
+
+    fn make_date_part(&self, filter: &EventFilter) -> String {
+        if let Some(month_day) = filter.month_day() {
+            let md = format!("{:02}-{:02}", month_day.month(), month_day.day());
+            format!("strftime('%m-%d', event_date) = '{}'", md)
+        } else {
+            "".to_string()
+        }
+    }
+
+    fn make_category_part(&self, filter: &EventFilter, category_map: &HashMap<i64, Category>) -> String {
+        if let Some(filter_category) = filter.category() {
+            let mut filter_category_id: Option<i64> = None;
+
+            // Brute force search for maching category:
+            //eprintln!("Looking for categories in map...");
+            for (category_id, category) in category_map {
+                //eprintln!("{}: {}", category_id, category);
+                if *category == filter_category {
+                    filter_category_id = Some(*category_id);
+                    //eprintln!("Found it!");
+                    break;
+                }
+            }
+
+            match filter_category_id {
+                Some(id) => format!("category_id = {}", id),
+                None => "".to_string(),
+            }
+        } else {
+            "".to_string()
+        }
+    }
+
+    fn make_text_part(&self, filter: &EventFilter) -> String {
+        if let Some(pattern) = filter.pattern() {
+            format!("event_description LIKE '%{}%'", pattern)
+        } else {
+            "".to_string()
+        }
+    }
+
+    fn make_where_clause(&self, filter: &EventFilter, category_map: &HashMap<i64, Category>) -> String {
+        let condition = 
+            bitflags_match!(filter.flags(), {
+                FilterFlags::MONTH_DAY => {
+                    self.make_date_part(filter)
+                },
+                FilterFlags::CATEGORY => {
+                    self.make_category_part(filter, category_map)
+                },
+                FilterFlags::MONTH_DAY | FilterFlags::CATEGORY => {
+                    format!("{} AND {}", self.make_date_part(filter), self.make_category_part(filter, category_map))
+                },
+                FilterFlags::TEXT => {
+                    self.make_text_part(filter)
+                },
+                FilterFlags::MONTH_DAY | FilterFlags::CATEGORY | FilterFlags::TEXT => {
+                    format!(
+                        "{} AND {} AND {}", 
+                        self.make_date_part(filter), 
+                        self.make_category_part(filter, category_map),
+                        self.make_text_part(filter))
+                },
+                _ => "".to_string(),
+            }).to_string();
+
+        let mut result = "WHERE ".to_string();
+        result.push_str(&condition);
+        result
+    }
 }
 
 impl EventProvider for SQLiteProvider {
@@ -26,7 +99,7 @@ impl EventProvider for SQLiteProvider {
         self.name.clone()
     }
 
-    fn get_events(&self, events: &mut Vec<Event>) {
+    fn get_events(&self, filter: &EventFilter, events: &mut Vec<Event>) {
         let connection = Connection::open(self.path.clone()).unwrap();
 
         let mut category_map: HashMap<i64, Category> = HashMap::new();
@@ -52,11 +125,10 @@ impl EventProvider for SQLiteProvider {
         }
          */
 
-        //let where_clause = self.make_where_clause(filter, &category_map);
-
-        let event_query: String = "SELECT event_date, event_description, category_id FROM event".to_string();
-        //event_query.push(' ');
-        //event_query.push_str(&where_clause);
+        let where_clause = self.make_where_clause(filter, &category_map);
+        let mut event_query: String = "SELECT event_date, event_description, category_id FROM event".to_string();
+        event_query.push(' ');
+        event_query.push_str(&where_clause);
 
         eprintln!("SQLite database query: \"{}\"", event_query);
 
