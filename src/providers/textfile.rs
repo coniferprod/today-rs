@@ -3,10 +3,10 @@ use std::fs::File;
 use std::io::{BufReader, BufRead};
 use std::fmt;
 
-//use chrono::NaiveDate;
+use chrono::{NaiveDate, Local, Datelike};
 
 use crate::EventProvider;
-use crate::events::{Event, Category};
+use crate::events::{Event, Category, MonthDay};
 use crate::filters::EventFilter;
 
 enum ReadingState {
@@ -67,16 +67,33 @@ impl EventProvider for TextFileProvider {
                     state = ReadingState::Separator;
                 },
                 ReadingState::Separator => {
-                    match chrono::NaiveDate::parse_from_str(&date_string, "%F") {
+                    let is_yearless = date_string.starts_with("--");
+                    if is_yearless {
+                        let today: NaiveDate = Local::now().date_naive();
+                        let year_string = format!("{:04}-", today.year());
+                        date_string = date_string.replace("--", &year_string);
+                    }
+                    let event: Event;
+                    match NaiveDate::parse_from_str(&date_string, "%F") {
                         Ok(date) => {
                             let category = Category::from_str(&category_string);
-                            let event = Event::new_singular(date, description.clone(), category);
+                            if is_yearless {
+                                event = Event::new_annual(
+                                    MonthDay::new(date.month(), date.day()),
+                                    description.clone(), 
+                                    category);
+                            } else {
+                                event = Event::new_singular( 
+                                    date, 
+                                    description.clone(), 
+                                    category);
+                            }
                             if filter.accepts(&event) {
                                 events.push(event);
                             }
                         },
                         Err(_) => {
-                            eprintln!("Invalid timestamp '{}'", date_string);
+                            eprintln!("Invalid date '{}'", date_string);
                         }
                     }
                     state = ReadingState::Date;

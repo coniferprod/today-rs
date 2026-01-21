@@ -1,6 +1,6 @@
 use std::fmt;
 
-use chrono::{NaiveDate, Datelike};
+use chrono::{NaiveDate, Datelike, Local, Weekday};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct MonthDay {
@@ -68,6 +68,7 @@ impl fmt::Display for Category {
 #[derive(Debug)]
 pub enum EventKind {
     Singular(NaiveDate),
+    Annual(MonthDay),
 }
 
 #[derive(Debug)]
@@ -86,9 +87,19 @@ impl Event {
         }
     }
 
+    pub fn new_annual(month_day: MonthDay, description: String, category: Category) -> Self {
+        Event {
+            kind: EventKind::Annual(month_day),
+            description,
+            category
+        }
+    }
+
     pub fn year(&self) -> i32 {
+        let today: NaiveDate = Local::now().date_naive();
         match &self.kind {
             EventKind::Singular(date) => date.year(),
+            EventKind::Annual(_month_day) => today.year()
         }
     }
 
@@ -96,6 +107,8 @@ impl Event {
         match &self.kind {
             EventKind::Singular(date) => 
                 MonthDay { month: date.month(), day: date.day() },
+            EventKind::Annual(month_day) => 
+                MonthDay { month: month_day.month, day: month_day.day },
         }
     } 
 
@@ -111,9 +124,8 @@ impl Event {
 impl fmt::Display for Event {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}: {} ({})",
-            match &self.kind {
-                EventKind::Singular(date) => date.year(),
-            }, 
-            self.description, self.category)
+            self.year(),
+            self.description,
+            self.category)
     }
 }
