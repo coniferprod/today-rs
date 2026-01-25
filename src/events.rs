@@ -85,7 +85,7 @@ pub enum Ordinal {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Rule {
+pub struct Rule {
     ordinal: Ordinal,
     weekday: Weekday,
     month: Month,

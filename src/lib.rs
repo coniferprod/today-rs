@@ -63,8 +63,6 @@ pub fn run(config: &Config, config_path: &Path) -> Result<(), Box<dyn Error>> {
 
     let mut events: Vec<Event> = Vec::new();
 
-    let filter: EventFilter = FilterBuilder::new().build();
-
     let today: NaiveDate = Local::now().date_naive();
     let filter: EventFilter = FilterBuilder::new()
         .month_day(MonthDay::new(today.month(), today.day()))

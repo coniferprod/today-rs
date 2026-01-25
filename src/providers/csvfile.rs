@@ -3,7 +3,7 @@ use chrono::{NaiveDate, Local, Datelike};
 use csv::ReaderBuilder;
 
 use crate::EventProvider;
-use crate::events::{Event, Category, MonthDay};
+use crate::events::{Event, Category, MonthDay, Rule};
 use crate::filters::EventFilter;
 
 pub struct CSVFileProvider {
@@ -34,16 +34,31 @@ impl EventProvider for CSVFileProvider {
             let description = record[1].to_string();
             let category_string = record[2].to_string();
 
+            let event: Event;
+            let category = Category::from_str(&category_string);
+
+            // Check if the date string starts with a letter:
+            let is_rule_based = date_string.chars().next().unwrap().is_alphabetic();
+            if is_rule_based {
+                event = Event::new_rule_based(
+                    Rule::parse(&date_string).unwrap(), 
+                    description, 
+                    category);
+                if filter.accepts(&event) {
+                    events.push(event);
+                }
+                continue;
+            }
+
             let is_yearless = date_string.starts_with("--");
             if is_yearless {
                 let today: NaiveDate = Local::now().date_naive();
                 let year_string = format!("{:04}-", today.year());
                 date_string = date_string.replace("--", &year_string);
             }
-            let event: Event;
+            
             match NaiveDate::parse_from_str(&date_string, "%F") {
                 Ok(date) => {
-                    let category = Category::from_str(&category_string);
                     if is_yearless {
                         event = Event::new_annual(
                             MonthDay::new(date.month(), date.day()),
