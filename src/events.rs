@@ -75,6 +75,7 @@ pub enum EventKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumString)]
+#[strum(ascii_case_insensitive)]
 pub enum Ordinal {
     First,
     Second,
@@ -114,11 +115,11 @@ impl FromStr for Rule {
 */
 
 impl Rule {
-    pub fn parse_opt(rule_string: &str) -> Option<Self> {
-        // Parse a rule of the following format:
-        // first|second|third|fourth|fifth|last <weekday> in <month>
-        //   weekday: Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday
-        //   month: January|February|March| ... |November|December
+    // Parse a rule of the following format:
+    // first|second|third|fourth|fifth|last <weekday> in <month>
+    //   weekday: Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday
+    //   month: January|February|March| ... |November|December
+    pub fn parse(rule_string: &str) -> Option<Self> {
         let parts: Vec<String> = rule_string.to_lowercase().split_whitespace()
             .map(str::to_string).collect();
 
@@ -127,21 +128,6 @@ impl Rule {
             return None;
         }
 
-        /*
-        let ordinal_string = parts[0];
-        let weekday_string = parts[1];
-        let month_string = parts[3];
-        */
-
-        /*
-        let ordinals_str = vec!["first", "second", "third", "fourth", "fifth", "last"];
-        let ordinals: Vec<_> = ordinals_str.into_iter().map(str::to_string).collect();
-        if !ordinals.contains(&ordinal_string) {
-            eprintln!("unrecognized ordinal {}", ordinal_string);
-            return None;
-        }
-        let ordinal = ordinals.iter().position(|s| *s == ordinal_string);
-         */
         let ordinal = match Ordinal::from_str(&parts[0]) {
             Ok(ord) => ord,
             Err(e) => {
@@ -149,18 +135,6 @@ impl Rule {
                 return None;
             }
         };
-
-        /*
-        let weekdays_str = vec![
-            "monday", "tuesday", "wednesday", "thursday", 
-            "friday", "saturday", "sunday"
-        ];
-        let weekdays: Vec<_> = weekdays_str.into_iter().map(str::to_string).collect();
-        if !weekdays.contains(&weekday_string) {
-            eprintln!("unrecognized weekday {}", weekday_string);
-            return None;
-        }
-        */
 
         let weekday = match parts[1].parse::<Weekday>() {
             Ok(wd) => wd,
@@ -170,20 +144,12 @@ impl Rule {
             }
         };
 
-        /*
-        let months_str = vec![
-            "january", "february", "march", "april", "may", "june", 
-            "july", "august", "september", "october", "november", "december"];
-        let months: Vec<_> = months_str.into_iter().map(str::to_string).collect();
-        if !months.contains(&month_string) {
-            eprintln!("unknown month {}", month_string);
+        if parts[2] != "in" {
+            eprintln!("rule should specify `in`");
             return None;
         }
 
-        let month_number = months.iter().position(|s| *s == month_string);
-         */
-
-        let month = match parts[2].parse::<Month>() {
+        let month = match parts[3].parse::<Month>() {
             Ok(m) => m,
             Err(e) => {
                 eprintln!("{}", e);
@@ -195,12 +161,10 @@ impl Rule {
     }
 
     pub fn month_day(&self) -> Option<MonthDay> {
-        match self.resolve_date() {
-            Ok(date) => Some(MonthDay { month: date.month(), day: date.day() }),
-            Err(e) => {
-                eprintln!("{}", e);
-                None
-            }
+        if let Some(date) = self.resolve_date() {
+            Some(MonthDay { month: date.month(), day: date.day() })
+        } else {
+            None
         }
     }
 
@@ -208,7 +172,7 @@ impl Rule {
         Local::now().year()
     }
 
-    pub fn resolve_date(&self) -> Result<NaiveDate, String> {
+    pub fn resolve_date(&self) -> Option<NaiveDate> {
         let year = Local::now().year();
 
         match self.ordinal {
@@ -222,7 +186,7 @@ impl Rule {
 }
 
 fn nth_weekday_in_month(year: i32, month: Month, weekday: Weekday, n: u32)
-        -> Result<NaiveDate, String> {
+        -> Option<NaiveDate> {
     let mut count = 0;
 
     for day in 1..=31 {
@@ -230,26 +194,26 @@ fn nth_weekday_in_month(year: i32, month: Month, weekday: Weekday, n: u32)
             if date.weekday() == weekday {
                 count += 1;
                 if count == n {
-                    return Ok(date);
+                    return Some(date);
                 }
             }
         }
     }
 
-    Err("No such weekday occurrence in month".into())
+    None
 }
 
 fn last_weekday_in_month(year: i32, month: Month, weekday: Weekday)
-        -> Result<NaiveDate, String> {
+        -> Option<NaiveDate> {
     for day in (1..=31).rev() {
         if let Some(date) = NaiveDate::from_ymd_opt(year, month.number_from_month(), day) {
             if date.weekday() == weekday {
-                return Ok(date);
+                return Some(date);
             }
         }
     }
 
-    Err("No matching weekday found".into())
+    None
 }
 
 
@@ -334,40 +298,22 @@ mod tests {
 
     #[test]
     fn rejects_invalid_ordinal() {
-        assert_eq!(Rule::parse_opt("sixth sunday in may"), None);
+        assert_eq!(Rule::parse("sixth sunday in may"), None);
     }
 
     #[test]
     fn rejects_invalid_weekday() {
-        assert_eq!(Rule::parse_opt("first bloomsday in june"), None);
+        assert_eq!(Rule::parse("first bloomsday in june"), None);
     }
 
     #[test]
     fn rejects_invalid_month() {
-        assert_eq!(Rule::parse_opt("first tuesday in remember"), None);
+        assert_eq!(Rule::parse("first tuesday in remember"), None);
     }
 
     #[test]
     fn valid_date_from_rule() {
-        // TODO: Rethink / rewrite this test
-
-        let rule = Rule::parse_opt("second tuesday in may");
-        match rule {
-            Some(r) => {
-                match r.resolve_date() {
-                    Ok(date) => {
-                        println!("resolved date = {}", date);
-                        assert_eq!(date, NaiveDate::from_ymd_opt(2026, 5, 12).unwrap());
-                    },
-                    Err(e) => {
-                        eprintln!("{}", e);
-                        assert_ne!(0, 0);
-                    }          
-                }
-            },
-            None => {
-                assert_ne!(0, 0);
-            }
-        }
+        let rule = Rule::parse("second tuesday in may").unwrap();
+        assert_eq!(Some(rule.resolve_date()), Some(NaiveDate::from_ymd_opt(2026, 5, 12)));
     }
 }
