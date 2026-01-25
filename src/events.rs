@@ -1,6 +1,8 @@
 use std::fmt;
+use std::str::FromStr;
 
-use chrono::{NaiveDate, Datelike, Local, Weekday};
+use chrono::{NaiveDate, Datelike, Local, Weekday, Month};
+use strum_macros::EnumString;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct MonthDay {
@@ -69,7 +71,169 @@ impl fmt::Display for Category {
 pub enum EventKind {
     Singular(NaiveDate),
     Annual(MonthDay),
+    RuleBased(Rule),
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, EnumString)]
+pub enum Ordinal {
+    First,
+    Second,
+    Third,
+    Fourth,
+    Last,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Rule {
+    ordinal: Ordinal,
+    weekday: Weekday,
+    month: Month,
+}
+
+/*/
+impl FromStr for Rule {
+    type Err = String;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        let tokens: Vec<&str> = input.to_lowercase().split_whitespace().collect();
+        if tokens.len() != 4 {
+            return Err("invalid rule format".into());
+        }
+
+        let ordinal = match tokens[0].as_str() {
+            "first" => Ordinal::First,
+            "second" => Ordinal::Second,
+            "third" => Ordinal::Third,
+            "fourth" => Ordinal::Fourth,
+            "last" => Ordinal::Last,
+            _ => return Err("invalid ordinal").into()
+        };
+
+    }
+}
+*/
+
+impl Rule {
+    pub fn parse_opt(rule_string: &str) -> Option<Self> {
+        // Parse a rule of the following format:
+        // first|second|third|fourth|fifth|last <weekday> in <month>
+        //   weekday: Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday
+        //   month: January|February|March| ... |November|December
+        let parts: Vec<String> = rule_string.to_lowercase().split_whitespace()
+            .map(str::to_string).collect();
+
+        if parts.len() != 4 {
+            eprintln!("invalid rule: {}", rule_string);
+            return None;
+        }
+
+        /*
+        let ordinal_string = parts[0];
+        let weekday_string = parts[1];
+        let month_string = parts[3];
+        */
+
+        /*
+        let ordinals_str = vec!["first", "second", "third", "fourth", "fifth", "last"];
+        let ordinals: Vec<_> = ordinals_str.into_iter().map(str::to_string).collect();
+        if !ordinals.contains(&ordinal_string) {
+            eprintln!("unrecognized ordinal {}", ordinal_string);
+            return None;
+        }
+        let ordinal = ordinals.iter().position(|s| *s == ordinal_string);
+         */
+        let ordinal = Ordinal::from_str(&parts[0]).unwrap();
+
+        /*
+        let weekdays_str = vec![
+            "monday", "tuesday", "wednesday", "thursday", 
+            "friday", "saturday", "sunday"
+        ];
+        let weekdays: Vec<_> = weekdays_str.into_iter().map(str::to_string).collect();
+        if !weekdays.contains(&weekday_string) {
+            eprintln!("unrecognized weekday {}", weekday_string);
+            return None;
+        }
+        */
+
+        let weekday = parts[1].parse::<Weekday>().unwrap();
+
+        /*
+        let months_str = vec![
+            "january", "february", "march", "april", "may", "june", 
+            "july", "august", "september", "october", "november", "december"];
+        let months: Vec<_> = months_str.into_iter().map(str::to_string).collect();
+        if !months.contains(&month_string) {
+            eprintln!("unknown month {}", month_string);
+            return None;
+        }
+
+        let month_number = months.iter().position(|s| *s == month_string);
+         */
+
+        let month = parts[2].parse::<Month>().unwrap();
+
+        Some(Self { ordinal, weekday, month })
+    }
+
+    pub fn month_day(&self) -> Option<MonthDay> {
+        match self.resolve() {
+            Ok(date) => Some(MonthDay { month: date.month(), day: date.day() }),
+            Err(e) => {
+                eprintln!("{}", e);
+                None
+            }
+        }
+    }
+
+    pub fn year(&self) -> i32 {
+        Local::now().year()
+    }
+
+    fn resolve(&self) -> Result<NaiveDate, String> {
+        let year = Local::now().year();
+
+        match self.ordinal {
+            Ordinal::First => nth_weekday_in_month(year, self.month, self.weekday, 1),
+            Ordinal::Second => nth_weekday_in_month(year, self.month, self.weekday, 2),
+            Ordinal::Third => nth_weekday_in_month(year, self.month, self.weekday, 3),
+            Ordinal::Fourth => nth_weekday_in_month(year, self.month, self.weekday, 4),
+            Ordinal::Last => last_weekday_in_month(year, self.month, self.weekday),
+        }
+    }
+}
+
+fn nth_weekday_in_month(year: i32, month: Month, weekday: Weekday, n: u32)
+        -> Result<NaiveDate, String> {
+    let mut count = 0;
+
+    for day in 1..=31 {
+        if let Some(date) = NaiveDate::from_ymd_opt(year, month.number_from_month(), day) {
+            if date.weekday() == weekday {
+                count += 1;
+                if count == n {
+                    return Ok(date);
+                }
+            }
+        }
+    }
+
+    Err("No such weekday occurrence in month".into())
+}
+
+fn last_weekday_in_month(year: i32, month: Month, weekday: Weekday)
+        -> Result<NaiveDate, String> {
+    for day in (1..=31).rev() {
+        if let Some(date) = NaiveDate::from_ymd_opt(year, month.number_from_month(), day) {
+            if date.weekday() == weekday {
+                return Ok(date);
+            }
+        }
+    }
+
+    Err("No matching weekday found".into())
+}
+
 
 #[derive(Debug)]
 pub struct Event {
@@ -95,11 +259,20 @@ impl Event {
         }
     }
 
+    pub fn new_rule_based(rule: Rule, description: String, category: Category) -> Self {
+        Event {
+            kind: EventKind::RuleBased(rule),
+            description, 
+            category
+        }
+    }
+
     pub fn year(&self) -> i32 {
         let today: NaiveDate = Local::now().date_naive();
         match &self.kind {
             EventKind::Singular(date) => date.year(),
-            EventKind::Annual(_month_day) => today.year()
+            EventKind::Annual(_month_day) => today.year(),
+            EventKind::RuleBased(rule) => rule.year(),
         }
     }
 
@@ -109,6 +282,12 @@ impl Event {
                 MonthDay { month: date.month(), day: date.day() },
             EventKind::Annual(month_day) => 
                 MonthDay { month: month_day.month, day: month_day.day },
+            EventKind::RuleBased(rule) => {
+                match rule.month_day() {
+                    Some(month_day) => month_day,
+                    None => panic!("invalid month day resolved from rule"),
+                }
+            }
         }
     } 
 

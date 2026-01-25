@@ -1,6 +1,6 @@
 [package]
 name = "today"
-version = "0.10.0"
+version = "0.11.0"
 edition = "2024"
 
 [dependencies]
@@ -13,3 +13,5 @@ toml = "0.9.11"
 reqwest = { version = "0.12.26", features = ["blocking", "json"] }
 serde_json = "1.0"
 bitflags = "2.10.0"
+strum = "0.27"
+strum_macros = "0.27"
