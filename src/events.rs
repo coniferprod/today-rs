@@ -142,7 +142,13 @@ impl Rule {
         }
         let ordinal = ordinals.iter().position(|s| *s == ordinal_string);
          */
-        let ordinal = Ordinal::from_str(&parts[0]).unwrap();
+        let ordinal = match Ordinal::from_str(&parts[0]) {
+            Ok(ord) => ord,
+            Err(e) => {
+                eprintln!("{}", e);
+                return None;
+            }
+        };
 
         /*
         let weekdays_str = vec![
@@ -156,7 +162,13 @@ impl Rule {
         }
         */
 
-        let weekday = parts[1].parse::<Weekday>().unwrap();
+        let weekday = match parts[1].parse::<Weekday>() {
+            Ok(wd) => wd,
+            Err(e) => {
+                eprintln!("{}", e);
+                return None;
+            }
+        };
 
         /*
         let months_str = vec![
@@ -171,13 +183,19 @@ impl Rule {
         let month_number = months.iter().position(|s| *s == month_string);
          */
 
-        let month = parts[2].parse::<Month>().unwrap();
+        let month = match parts[2].parse::<Month>() {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!("{}", e);
+                return None;
+            }
+        };
 
         Some(Self { ordinal, weekday, month })
     }
 
     pub fn month_day(&self) -> Option<MonthDay> {
-        match self.resolve() {
+        match self.resolve_date() {
             Ok(date) => Some(MonthDay { month: date.month(), day: date.day() }),
             Err(e) => {
                 eprintln!("{}", e);
@@ -190,7 +208,7 @@ impl Rule {
         Local::now().year()
     }
 
-    fn resolve(&self) -> Result<NaiveDate, String> {
+    pub fn resolve_date(&self) -> Result<NaiveDate, String> {
         let year = Local::now().year();
 
         match self.ordinal {
@@ -306,5 +324,50 @@ impl fmt::Display for Event {
             self.year(),
             self.description,
             self.category)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::events::Rule;
+    use chrono::NaiveDate;
+
+    #[test]
+    fn rejects_invalid_ordinal() {
+        assert_eq!(Rule::parse_opt("sixth sunday in may"), None);
+    }
+
+    #[test]
+    fn rejects_invalid_weekday() {
+        assert_eq!(Rule::parse_opt("first bloomsday in june"), None);
+    }
+
+    #[test]
+    fn rejects_invalid_month() {
+        assert_eq!(Rule::parse_opt("first tuesday in remember"), None);
+    }
+
+    #[test]
+    fn valid_date_from_rule() {
+        // TODO: Rethink / rewrite this test
+
+        let rule = Rule::parse_opt("second tuesday in may");
+        match rule {
+            Some(r) => {
+                match r.resolve_date() {
+                    Ok(date) => {
+                        println!("resolved date = {}", date);
+                        assert_eq!(date, NaiveDate::from_ymd_opt(2026, 5, 12).unwrap());
+                    },
+                    Err(e) => {
+                        eprintln!("{}", e);
+                        assert_ne!(0, 0);
+                    }          
+                }
+            },
+            None => {
+                assert_ne!(0, 0);
+            }
+        }
     }
 }
