@@ -1,3 +1,9 @@
+//! # providers
+//! 
+//! The `providers` module defines the `EventProvider` trait
+//! and collects all the modules for the event providers that 
+//! implement the trait.
+
 use chrono::{NaiveDate, Local};
 use crate::events::{Event, Category};
 use crate::filters::EventFilter;

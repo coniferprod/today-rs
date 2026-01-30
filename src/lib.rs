@@ -1,3 +1,8 @@
+//! # The library crate
+//! 
+//! This crate defines the program configuration items and
+//! has the `run` function to actually run the program.
+
 mod birthday;
 mod events;
 mod providers;
@@ -51,7 +56,7 @@ pub fn run(config: &Config, config_path: &Path) -> Result<(), Box<dyn Error>> {
             "web" => {
                 let provider = WebProvider::new(&cfg.name, &cfg.resource);
                 providers.push(Box::new(provider));
-            }
+            },
             _ => {
                 eprintln!("Unable to make provider: {:?}", cfg);
             }

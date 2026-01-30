@@ -4,7 +4,7 @@ use std::str::FromStr;
 use chrono::{NaiveDate, Datelike, Local, Weekday, Month};
 use strum_macros::EnumString;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub struct MonthDay {
     month: u32,
     day: u32,
@@ -67,14 +67,14 @@ impl fmt::Display for Category {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum EventKind {
     Singular(NaiveDate),
     Annual(MonthDay),
     RuleBased(Rule),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, EnumString)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, EnumString)]
 #[strum(ascii_case_insensitive)]
 pub enum Ordinal {
     First,
@@ -84,7 +84,7 @@ pub enum Ordinal {
     Last,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Rule {
     ordinal: Ordinal,
     weekday: Weekday,
@@ -217,7 +217,7 @@ fn last_weekday_in_month(year: i32, month: Month, weekday: Weekday)
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Event {
     kind: EventKind,
     description: String,
