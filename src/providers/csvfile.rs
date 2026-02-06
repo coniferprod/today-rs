@@ -3,6 +3,7 @@ use chrono::{NaiveDate, Local, Datelike};
 use csv::ReaderBuilder;
 
 use crate::EventProvider;
+use crate::providers::EventProviderError;
 use crate::events::{Event, Category, MonthDay, Rule};
 use crate::filters::EventFilter;
 
@@ -79,5 +80,11 @@ impl EventProvider for CSVFileProvider {
                 }
             }
         }
+    }
+
+    fn is_add_supported(&self) -> bool { false }
+    
+    fn add_event(&self, event: &Event) -> Result<(), EventProviderError> {
+        unimplemented!("add not implemented for CSV");
     }
 }

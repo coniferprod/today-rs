@@ -7,6 +7,7 @@ use bitflags::bitflags_match;
 
 use crate::events::{Event, Category, MonthDay};
 use crate::providers::EventProvider;
+use crate::providers::EventProviderError;
 use crate::filters::{EventFilter, FilterFlags};
 
 pub struct SQLiteProvider {
@@ -145,5 +146,9 @@ impl EventProvider for SQLiteProvider {
             let category = category_map.get(&category_id).unwrap();
             events.push(Event::new_singular(date, description.to_string(), category.clone()));
         }
+    }
+
+    fn add_event(&self, event: &Event) -> Result<(), EventProviderError> {
+        Err(EventProviderError::OperationNotSupported)
     }
 }

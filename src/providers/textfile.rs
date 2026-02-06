@@ -1,13 +1,14 @@
 use std::path::{Path, PathBuf};
-use std::fs::File;
-use std::io::{BufReader, BufRead};
+use std::fs::{File, OpenOptions};
+use std::io::{BufReader, BufRead, BufWriter, Write};
 use std::fmt;
 
 use chrono::{NaiveDate, Local, Datelike};
 
 use crate::EventProvider;
-use crate::events::{Event, Category, MonthDay};
+use crate::events::{Event, Category, MonthDay, EventKind};
 use crate::filters::EventFilter;
+use crate::providers::EventProviderError;
 
 enum ReadingState {
     Date,
@@ -100,5 +101,31 @@ impl EventProvider for TextFileProvider {
                 },
             }
         }
+    }
+
+    fn is_add_supported(&self) -> bool { true }
+
+    fn add_event(&self, event: &Event) -> Result<(), EventProviderError> {
+        if !self.is_add_supported() {
+            return Err(EventProviderError::OperationNotSupported);
+        }
+
+        let file = OpenOptions::new()
+            .append(true)
+            .open(self.path.clone())
+            .expect("path to text file for writing");
+
+        let mut writer = BufWriter::new(file);
+
+        return match event.kind() {
+            EventKind::Singular(date) => {
+                writeln!(writer, "{}", date.to_string());
+                writeln!(writer, "{}", event.description());
+                writeln!(writer, "{}", event.category());
+                writeln!(writer, "");
+                Ok(())
+            },
+            _ => Err(EventProviderError::OperationNotSupported)
+        };
     }
 }

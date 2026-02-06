@@ -9,6 +9,7 @@ use bitflags::bitflags_match;
 
 use crate::events::{Event, Category, MonthDay};
 use crate::providers::EventProvider;
+use crate::providers::EventProviderError;
 use crate::filters::EventFilter;
 
 pub struct WebProvider {
@@ -81,4 +82,8 @@ impl EventProvider for WebProvider {
             }
         }
     }
+
+    fn add_event(&self, event: &Event) -> Result<(), EventProviderError> {
+        Err(EventProviderError::OperationNotSupported)
+    }    
 }

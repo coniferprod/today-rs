@@ -116,7 +116,7 @@ impl fmt::Display for Category {
     }
 }
 
-#[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum EventKind {
     Singular(NaiveDate),
     Annual(MonthDay),
@@ -328,6 +328,10 @@ impl Event {
 
     pub fn description(&self) -> String {
         self.description.clone()
+    }
+
+    pub fn kind(&self) -> EventKind {
+        self.kind.clone()
     }
 }
 

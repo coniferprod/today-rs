@@ -5,9 +5,9 @@
 
 use std::fs;
 use std::path::PathBuf;
-use today::{run, Config};
+use today::{run, add_event, Config};
 use today::filters::FilterBuilder;
-use today::events::MonthDay;
+use today::events::{Event, EventKind, Category, MonthDay};
 use chrono::{NaiveDate, Local, Datelike};
 use clap::{Parser, Subcommand};
 
@@ -17,7 +17,19 @@ enum Command {
     Providers,
 
     /// Adds an event to an event provider
-    Add,
+    Add {
+        #[arg(short, long, help = "Name of event provider")]
+        provider_name: String,
+
+        #[arg(short, long, help = "Date of event. Format: YYYY-MM-DD")]
+        date: String,
+
+        #[arg(short = 'e', long, help = "Description of event")]
+        description: String,
+
+        #[arg(short, long, help = "Category of event. Format: primary[/secondary]")]
+        category: String,
+    }
 }
 
 #[derive(Parser)]
@@ -60,7 +72,14 @@ fn main() {
                     }
                 },
 
-                Some(Command::Add) => todo!("add not implemented yet"),
+                Some(Command::Add { provider_name, date, description, category }) => {
+                    println!("provider_name = '{}'  date = '{}'  description = '{}'  category = '{}'",
+                        provider_name, date, description, category);
+                    let category = Category::from_str(&category);
+                    let date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d").unwrap();
+                    let event = Event::new_singular(date, description, category);
+                    add_event(&config, &path, &provider_name, &event);
+                },
 
                 _ => {
                     if let Err(e) = run(&config, &path, &filter) {
