@@ -1,8 +1,57 @@
 use std::fmt;
 use std::str::FromStr;
 
-use chrono::{NaiveDate, Datelike, Local, Weekday, Month};
+use chrono::{
+    NaiveDate, 
+    Datelike, 
+    Weekday as ChronoWeekday, 
+    Local, 
+    Month
+};
 use strum_macros::EnumString;
+
+/*
+The chrono::Weekday does not implement PartialOrd or Ord, 
+citing the reason as: "The order of the days of week 
+depends on the context."
+ */
+
+#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+pub enum Weekday {
+    Monday = 0,
+    Tuesday = 1,
+    Wednesday = 2,
+    Thursday = 3,
+    Friday = 4,
+    Saturday = 5,
+    Sunday = 6,
+}
+
+impl Weekday {
+    pub fn as_chrono_weekday(&self) -> ChronoWeekday {
+        match *self {
+            Weekday::Monday => ChronoWeekday::Mon,
+            Weekday::Tuesday => ChronoWeekday::Tue,
+            Weekday::Wednesday => ChronoWeekday::Wed,
+            Weekday::Thursday => ChronoWeekday::Thu,
+            Weekday::Friday => ChronoWeekday::Fri,
+            Weekday::Saturday => ChronoWeekday::Sat,
+            Weekday::Sunday => ChronoWeekday::Sun,
+        }
+    }
+
+    pub fn from_chrono_weekday(wd: ChronoWeekday) -> Self {
+        match wd {
+            ChronoWeekday::Mon => Weekday::Monday,
+            ChronoWeekday::Tue => Weekday::Tuesday,
+            ChronoWeekday::Wed => Weekday::Wednesday,
+            ChronoWeekday::Thu => Weekday::Thursday,
+            ChronoWeekday::Fri => Weekday::Friday,
+            ChronoWeekday::Sat => Weekday::Saturday,
+            ChronoWeekday::Sun => Weekday::Sunday,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub struct MonthDay {
@@ -27,7 +76,7 @@ impl MonthDay {
     pub fn day(&self) -> u32 { self.day }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Category {
     primary: String,
     secondary: Option<String>,
@@ -136,7 +185,7 @@ impl Rule {
             }
         };
 
-        let weekday = match parts[1].parse::<Weekday>() {
+        let weekday = match parts[1].parse::<ChronoWeekday>() {
             Ok(wd) => wd,
             Err(e) => {
                 eprintln!("{}", e);
@@ -157,7 +206,7 @@ impl Rule {
             }
         };
 
-        Some(Self { ordinal, weekday, month })
+        Some(Self { ordinal, weekday: Weekday::from_chrono_weekday(weekday), month })
     }
 
     pub fn month_day(&self) -> Option<MonthDay> {
@@ -191,7 +240,7 @@ fn nth_weekday_in_month(year: i32, month: Month, weekday: Weekday, n: u32)
 
     for day in 1..=31 {
         if let Some(date) = NaiveDate::from_ymd_opt(year, month.number_from_month(), day) {
-            if date.weekday() == weekday {
+            if date.weekday() == weekday.as_chrono_weekday() {
                 count += 1;
                 if count == n {
                     return Some(date);
@@ -207,7 +256,7 @@ fn last_weekday_in_month(year: i32, month: Month, weekday: Weekday)
         -> Option<NaiveDate> {
     for day in (1..=31).rev() {
         if let Some(date) = NaiveDate::from_ymd_opt(year, month.number_from_month(), day) {
-            if date.weekday() == weekday {
+            if date.weekday() == weekday.as_chrono_weekday() {
                 return Some(date);
             }
         }

@@ -4,9 +4,9 @@
 //! has the `run` function to actually run the program.
 
 mod birthday;
-mod events;
-mod providers;
-mod filters;
+pub mod events;
+pub mod providers;
+pub mod filters;
 
 use std::error::Error;
 use std::path::{Path, PathBuf};
@@ -22,17 +22,18 @@ use crate::filters::{EventFilter, FilterBuilder};
 
 #[derive(Deserialize, Debug)]
 pub struct ProviderConfig {
-    name: String,
+    pub name: String,
     kind: String,
     resource: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
-    providers: Vec::<ProviderConfig>,
+    pub providers: Vec::<ProviderConfig>,
 }
 
-pub fn run(config: &Config, config_path: &Path) -> Result<(), Box<dyn Error>> {
+pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
+        -> Result<(), Box<dyn Error>> {
     birthday::handle_birthday();
 
     // Try to create all the event providers specified in `config`.
@@ -68,10 +69,13 @@ pub fn run(config: &Config, config_path: &Path) -> Result<(), Box<dyn Error>> {
 
     let mut events: Vec<Event> = Vec::new();
 
+    /*
     let today: NaiveDate = Local::now().date_naive();
+
     let filter: EventFilter = FilterBuilder::new()
         .month_day(MonthDay::new(today.month(), today.day()))
         .build();
+     */
 
     let mut count = 0;
     for provider in providers {

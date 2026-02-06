@@ -46,10 +46,12 @@ impl EventProvider for WebProvider {
         }
 
         let month_day = filter.month_day().unwrap();
+
         let date_parameter = format!(
             "date={:02}-{:02}", 
             month_day.month(), 
             month_day.day());
+
         let url = format!("{}?{}", &self.url, date_parameter);
         println!("web URL = {}", &url);
 
@@ -58,13 +60,14 @@ impl EventProvider for WebProvider {
 
         let response: Response;
         if request.is_err() {
-            panic!("Error while retrieving data: {:#?}", request.err());
+            eprintln!("Error while retrieving data: {:#?}", request.err());
+            return;
         } else {
             response = request.ok().unwrap();
         }
 
         let json_events = response.json::<Vec<JSONEvent>>().unwrap();
-        //println!("Got {} events from JSON", json_events.len());
+        println!("Got {} events from JSON", json_events.len());
 
         //println!("body = {:?}", response.text().unwrap());
         //eprintln!("JSON = {:?}", json);
