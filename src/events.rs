@@ -76,6 +76,14 @@ impl MonthDay {
     pub fn day(&self) -> u32 { self.day }
 }
 
+// Display trait implemented for construcing an SQLite date
+// when adding events with SQLiteProvider:
+impl fmt::Display for MonthDay {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:02}-{:02}", self.month, self.day)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Category {
     primary: String,
@@ -104,6 +112,15 @@ impl Category {
         } else {
             Category { primary: parts[0].to_string(), secondary: Some(parts[1].to_string()) }
         }
+    }
+
+    // Accessor functions added due to adding events in SQLiteProvider
+    pub fn primary(&self) -> String {
+        self.primary.clone()
+    }
+
+    pub fn secondary(&self) -> Option<String> {
+        self.secondary.clone()
     }
 }
 

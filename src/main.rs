@@ -60,10 +60,10 @@ fn main() {
     match config_path {
         Some(path) => {
             let toml_path = path.join(format!("{}.toml", APP_NAME));
-            println!("Looking for config file'{}'", &toml_path.display());
-            let config_str = fs::read_to_string(toml_path).expect("config file");
-            let config: Config = toml::from_str(&config_str).expect("valid config file");
-            //println!("config: {:?}", config);           
+            println!("Looking for configuration file '{}'", &toml_path.display());
+            let config_str = fs::read_to_string(toml_path).expect("existing configuration file");
+            let config: Config = toml::from_str(&config_str).expect("valid configuration file");
+            println!("config: {:#?}", config);           
 
             match args.cmd {
                 Some(Command::Providers) => {

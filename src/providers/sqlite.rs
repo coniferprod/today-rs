@@ -5,7 +5,7 @@ use sqlite::{Connection, State};
 use chrono::{NaiveDate, Datelike, Local};
 use bitflags::bitflags_match;
 
-use crate::events::{Event, Category, MonthDay};
+use crate::events::{Event, Category};
 use crate::providers::EventProvider;
 use crate::providers::EventProviderError;
 use crate::filters::{EventFilter, FilterFlags};
@@ -93,6 +93,43 @@ impl SQLiteProvider {
         result.push_str(&condition);
         result
     }
+
+    fn get_categories(&self) -> HashMap<i64, Category> {
+        let connection = Connection::open(self.path.clone()).unwrap();
+
+        let mut category_map: HashMap<i64, Category> = HashMap::new();
+
+        let category_query = "SELECT category_id, primary_name, secondary_name FROM category";
+        let mut statement = connection.prepare(category_query).unwrap();
+        while let Ok(State::Row) = statement.next() {
+            let category_id = statement.read::<i64, _>("category_id").unwrap();
+            let primary = statement.read::<String, _>("primary_name").unwrap();
+            let secondary = statement.read::<Option<String>, _>("secondary_name").unwrap();
+
+            let category = match secondary {
+                Some(sec) => Category::new(&primary, &sec),
+                None => Category::from_primary(&primary),
+            };
+            category_map.insert(category_id, category);
+        }
+
+        category_map
+    }
+
+    fn find_category_id(&self, category: &Category) -> Option<i64> {
+        // Get the categories currently in the database.
+        let category_map = self.get_categories();
+
+        // Use a brute force method where you iterate the hash map keys,
+        // and stop if one of the values matches the category.
+        for (id, cat) in &category_map {
+            if *cat == *category { // found it!
+                return Some(*id);
+            }
+        }
+
+        None
+    }
 }
 
 impl EventProvider for SQLiteProvider {
@@ -134,12 +171,10 @@ impl EventProvider for SQLiteProvider {
         eprintln!("SQLite database query: \"{}\"", event_query);
 
         for row in connection
-            .prepare(event_query)
-            .unwrap()
-            .into_iter()
-            .map(|row| row.unwrap()) 
-        {
-     
+                .prepare(event_query)
+                .unwrap()
+                .into_iter()
+                .map(|row| row.unwrap()) {
             let date = NaiveDate::parse_from_str(row.read::<&str, _>("event_date"), "%F").unwrap();
             let description = row.read::<&str, _>("event_description");
             let category_id = row.read::<i64, _>("category_id");
@@ -149,6 +184,57 @@ impl EventProvider for SQLiteProvider {
     }
 
     fn add_event(&self, event: &Event) -> Result<(), EventProviderError> {
+        // Find out if the category of the event is already there.
+        match self.find_category_id(&event.category()) {
+            Some(category_id) => {
+                // Found it, now insert the event to the database with this category ID:
+                let event_date_str = format!("{:04}-{}", event.year(), event.month_day());
+                let insert_query = format!("INSERT INTO event (event_date, event_description, category_id) VALUES ('{}', '{}', {})", 
+                    event_date_str, event.description(), category_id);
+                let connection = Connection::open(self.path.clone()).unwrap();
+                println!("Found existing category, about to run query: '{}'", insert_query);
+                connection.execute(insert_query).unwrap();
+            },
+            None => {
+                // Add a new category first, then add the event
+                let category = event.category();
+                let primary_str = category.primary();
+                let secondary_str = match category.secondary() {
+                    Some(secondary) => format!("'{}'", secondary),
+                    None => "NULL".to_string()
+                };
+                let insert_category_query = format!("INSERT INTO category (primary_name, secondary_name) VALUES ('{}', {})",
+                    primary_str, secondary_str);
+                let connection = Connection::open(self.path.clone()).unwrap();
+                println!("Existing category not found, about to run query '{}'", insert_category_query);
+                connection.execute(insert_category_query).unwrap();
+
+                // Looks like the sqlite crate does not have a way of getting the ID
+                // of the last inserted row, so we need to fetch the categories again
+                // and look for the newly inserted row...
+                match self.find_category_id(&category) {
+                    Some(category_id) => {
+                        // We have a category ID, let's insert the event:
+                        let event_date_str = format!("{:04}-{}", event.year(), event.month_day());
+                        let insert_event_query = format!("INSERT INTO event (event_date, event_description, category_id) VALUES ('{}', '{}', '{}')", 
+                            event_date_str, event.description(), category_id);
+                        println!("Existing category found, about to run query '{}'", insert_event_query);
+                        connection.execute(insert_event_query).unwrap();
+                    },
+                    None => {
+                        eprintln!("Unable to find inserted category!");
+                        return Err(EventProviderError::OperationFailed);
+                    }
+                }
+
+                // The database connection should be automatically dropped right about here...
+                return Ok(());
+            }
+        }
+
         Err(EventProviderError::OperationNotSupported)
     }
+
+    // Override the default implementation from the trait:
+    fn is_add_supported(&self) -> bool { true }
 }
