@@ -140,14 +140,14 @@ pub enum EventKind {
     RuleBased(Rule),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, EnumString)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, EnumString)]
 #[strum(ascii_case_insensitive)]
 pub enum Ordinal {
-    First,
-    Second,
-    Third,
-    Fourth,
-    Last,
+    First = 1,
+    Second = 2,
+    Third = 3,
+    Fourth = 4,
+    Last = 5,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -189,6 +189,7 @@ impl Rule {
         let parts: Vec<String> = rule_string.to_lowercase().split_whitespace()
             .map(str::to_string).collect();
 
+        // After splitting on whitespace, there must be exactly four parts.
         if parts.len() != 4 {
             eprintln!("invalid rule: {}", rule_string);
             return None;
@@ -210,8 +211,8 @@ impl Rule {
             }
         };
 
-        if parts[2] != "in" {
-            eprintln!("rule should specify `in`");
+        if parts[2] != "in" && parts[2] != "of" {
+            eprintln!("rule should specify `in` or `of`");
             return None;
         }
 
@@ -227,7 +228,7 @@ impl Rule {
     }
 
     pub fn month_day(&self) -> Option<MonthDay> {
-        if let Some(date) = self.resolve_date() {
+        if let Some(date) = self.resolve_date(self.year()) {
             Some(MonthDay { month: date.month(), day: date.day() })
         } else {
             None
@@ -238,20 +239,28 @@ impl Rule {
         Local::now().year()
     }
 
-    pub fn resolve_date(&self) -> Option<NaiveDate> {
-        let year = Local::now().year();
-
+    pub fn resolve_date(&self, year: i32) -> Option<NaiveDate> {
+        if self.ordinal == Ordinal::Last {
+            last_weekday_in_month(year, self.month, self.weekday)
+        } else {
+            nth_weekday_in_month(year, self.month, self.weekday, self.ordinal)
+        }
+        /*
         match self.ordinal {
+            Ordinal::
             Ordinal::First => nth_weekday_in_month(year, self.month, self.weekday, 1),
             Ordinal::Second => nth_weekday_in_month(year, self.month, self.weekday, 2),
             Ordinal::Third => nth_weekday_in_month(year, self.month, self.weekday, 3),
             Ordinal::Fourth => nth_weekday_in_month(year, self.month, self.weekday, 4),
             Ordinal::Last => last_weekday_in_month(year, self.month, self.weekday),
-        }
+        };
+        None
+         */
     }
 }
 
-fn nth_weekday_in_month(year: i32, month: Month, weekday: Weekday, n: u32)
+//fn nth_weekday_in_month(year: i32, month: Month, weekday: Weekday, n: u32)
+fn nth_weekday_in_month(year: i32, month: Month, weekday: Weekday, ordinal: Ordinal)
         -> Option<NaiveDate> {
     let mut count = 0;
 
@@ -259,7 +268,7 @@ fn nth_weekday_in_month(year: i32, month: Month, weekday: Weekday, n: u32)
         if let Some(date) = NaiveDate::from_ymd_opt(year, month.number_from_month(), day) {
             if date.weekday() == weekday.as_chrono_weekday() {
                 count += 1;
-                if count == n {
+                if count == ordinal as i32 {
                     return Some(date);
                 }
             }
@@ -363,8 +372,8 @@ impl fmt::Display for Event {
 
 #[cfg(test)]
 mod tests {
-    use crate::events::Rule;
-    use chrono::NaiveDate;
+    use crate::events::{Rule, last_weekday_in_month, nth_weekday_in_month, Ordinal, Weekday};
+    use chrono::{NaiveDate, Month};
 
     #[test]
     fn rejects_invalid_ordinal() {
@@ -384,6 +393,26 @@ mod tests {
     #[test]
     fn valid_date_from_rule() {
         let rule = Rule::parse("second tuesday in may").unwrap();
-        assert_eq!(Some(rule.resolve_date()), Some(NaiveDate::from_ymd_opt(2026, 5, 12)));
+        assert_eq!(Some(rule.resolve_date(2026)), Some(NaiveDate::from_ymd_opt(2026, 5, 12)));
+    }
+
+    #[test]
+    fn last_weekday() {
+        // last Monday in January 2026 should be 2026-01-26
+        let target = NaiveDate::from_ymd_opt(2026, 1, 26);
+        assert_eq!(
+            Some(last_weekday_in_month(2026, Month::January, Weekday::Monday)),
+            Some(target)
+        );
+    }
+
+    #[test]
+    fn first_weekday() {
+        // first Friday in May 2026 should be 2026-05-01
+        let target = NaiveDate::from_ymd_opt(2026, 5, 1);
+        assert_eq!(
+            Some(nth_weekday_in_month(2026, Month::May, Weekday::Friday, Ordinal::First)),
+            Some(target)
+        );
     }
 }
