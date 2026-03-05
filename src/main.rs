@@ -40,6 +40,9 @@ struct Args {
 
     #[arg(short, long, help = "Event date in MMDD format")]
     date: Option<String>,
+
+    #[arg(short, long, help = "Categories to exclude, comma-separated (a/b,c/d)")]
+    exclude: Option<String>,
 }
 
 fn main() {
@@ -54,6 +57,8 @@ fn main() {
     let filter = FilterBuilder::new()
         .month_day(month_day)
         .build();
+
+    // TODO: Handle the exclude categories option
 
     const APP_NAME: &str = "today";
     let config_path = get_config_path(APP_NAME);
