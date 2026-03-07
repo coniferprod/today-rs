@@ -238,3 +238,136 @@ impl EventProvider for SQLiteProvider {
     // Override the default implementation from the trait:
     fn is_add_supported(&self) -> bool { true }
 }
+
+fn make_date_part(filter: &EventFilter) -> String {
+    if let Some(month_day) = filter.month_day() {
+        let md = format!("{:02}-{:02}", month_day.month(), month_day.day());
+        format!("strftime('%m-%d', event_date) = '{}'", md)
+    } else {
+        "".to_string()
+    }
+}
+
+fn make_category_part(filter: &EventFilter, category_map: &HashMap<i64, Category>) -> String {
+    if let Some(filter_category) = filter.category() {
+        let mut filter_category_id: Option<i64> = None;
+
+        // Brute force search for maching category:
+        //eprintln!("Looking for categories in map...");
+        for (category_id, category) in category_map {
+            //eprintln!("{}: {}", category_id, category);
+            if *category == filter_category {
+                filter_category_id = Some(*category_id);
+                //eprintln!("Found it!");
+                break;
+            }
+        }
+
+        match filter_category_id {
+            Some(id) => format!("category_id = {}", id),
+            None => "".to_string(),
+        }
+    } else {
+        "".to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use crate::{events::Category, filters::FilterBuilder};
+    use crate::events::MonthDay;
+    use chrono::{NaiveDate, Local, Datelike};
+
+    fn create_db() -> sqlite::Connection {
+        let connection = sqlite::open(":memory:").unwrap();
+
+        let query = "
+CREATE TABLE IF NOT EXISTS event(
+    event_id INTEGER PRIMARY KEY,
+    event_date DATE NOT NULL,
+    event_description TEXT NOT NULL,
+    category_id INTEGER NOT NULL,
+    FOREIGN KEY (category_id) REFERENCES category(category_id));
+CREATE TABLE IF NOT EXISTS category(
+    category_id INTEGER PRIMARY KEY,
+    primary_name TEXT NOT NULL,
+    secondary_name TEXT);
+INSERT INTO category VALUES (1, 'test', NULL);
+INSERT INTO event (event_date, event_description, category_id)
+    VALUES ('2026-03-07', 'Unit test for SQLiteProvider', 1);
+";
+
+        connection.execute(query).unwrap();        
+
+        connection
+    }
+
+    #[test]
+    fn get_category() -> Result<(), String>{
+        let connection = create_db();
+        let category_query = "SELECT category_id, primary_name, secondary_name FROM category";
+        let mut statement = connection.prepare(category_query).unwrap();
+
+        if let Ok(sqlite::State::Row) = statement.next() {
+            assert_eq!((
+                statement.read::<i64, _>("category_id").unwrap(),
+                statement.read::<String, _>("primary_name").unwrap(),
+                statement.read::<Option<String>, _>("secondary_name").unwrap()),
+                (1, "test".to_string(), None));
+            Ok(())
+        } else {
+            Err("Unable to get category from database".to_string())
+        }
+    }
+
+    #[test]
+    fn get_event() -> Result<(), String> {
+        let connection = create_db();
+        let event_query = "SELECT event_date, event_description, category_id FROM event".to_string();
+        let mut statement = connection.prepare(event_query).unwrap();
+        if let Ok(sqlite::State::Row) = statement.next() {
+            assert_eq!((
+                statement.read::<String, _>("event_date").unwrap(),
+                statement.read::<String, _>("event_description").unwrap(),
+                statement.read::<i64, _>("category_id").unwrap()),
+                ("2026-03-07".to_string(), "Unit test for SQLiteProvider".to_string(), 1));
+            Ok(())
+        } else {
+            Err("Unable to retrieve event from database".to_string())
+        }
+    }
+
+    #[test]
+    fn make_date_part() {
+        let today = NaiveDate::from_ymd_opt(2026, 3, 7).unwrap();
+        let filter = FilterBuilder::new()
+            .month_day(MonthDay::new(today.month(), today.day()))
+            .build();
+        
+        let date_part = crate::providers::sqlite::make_date_part(&filter);
+        assert_eq!(date_part, "strftime('%m-%d', event_date) = '03-07'")
+    }
+
+    #[test]
+    fn make_category_part_nonempty() {
+        let mut category_map: HashMap<i64, Category> = HashMap::new();
+        category_map.insert(1, Category::from_primary("test"));
+        let filter = FilterBuilder::new()
+            .category(Category::from_primary("test"))
+            .build();
+
+        let category_part = crate::providers::sqlite::make_category_part(&filter, &category_map);
+        assert_eq!(category_part, "category_id = 1");
+    }
+
+    #[test]
+    fn make_category_part_empty() {
+        let mut category_map: HashMap<i64, Category> = HashMap::new();
+        let filter = FilterBuilder::new()
+            .build();
+
+        let category_part = crate::providers::sqlite::make_category_part(&filter, &category_map);
+        assert_eq!(category_part, "");
+    }
+}
