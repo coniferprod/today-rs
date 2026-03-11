@@ -9,11 +9,10 @@ pub mod providers;
 pub mod filters;
 
 use std::error::Error;
-use std::path::{Path, PathBuf};
-use chrono::{NaiveDate, Local, Datelike};
+use std::path::Path;
 use serde::Deserialize;
-use crate::events::{Event, Category, MonthDay};
-use crate::providers::{EventProvider, SimpleProvider, EventProviderError};
+use crate::events::{Event, EventKind, Category, MonthDay};
+use crate::providers::{EventProvider, SimpleProvider};
 use crate::providers::textfile::TextFileProvider;
 use crate::providers::csvfile::CSVFileProvider;
 use crate::providers::sqlite::SQLiteProvider;
@@ -73,14 +72,6 @@ pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
 
     let mut events: Vec<Event> = Vec::new();
 
-    /*
-    let today: NaiveDate = Local::now().date_naive();
-
-    let filter: EventFilter = FilterBuilder::new()
-        .month_day(MonthDay::new(today.month(), today.day()))
-        .build();
-     */
-
     let providers = create_providers(config, config_path);
 
     let mut count = 0;
@@ -94,8 +85,35 @@ pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
         count = new_count;
     }
 
+    let mut singular_events: Vec<&Event> = Vec::new();
+    let mut annual_events: Vec<&Event> = Vec::new();
+    for event in &events {
+        match event.kind() {
+            EventKind::Singular(_) => singular_events.push(event),
+            EventKind::Annual(_) | EventKind::RuleBased(_) =>
+                annual_events.push(event)
+        }
+    }
+
+    if singular_events.len() > 0 {
+        singular_events.sort_by(|a, b| a.year().cmp(&b.year()));
+        singular_events.reverse();
+        println!("On this day in history ({}):", singular_events.len());
+        for event in singular_events {
+            println!("{}", event);
+        }
+    }
+
+    if annual_events.len() > 0 {
+        println!("\nObserved today ({}):", annual_events.len());
+        for event in annual_events {
+            println!("{} ({})", event.description(), event.category());
+        }
+    }
+
     // Now we only have events that have already been filtered for today,
     // but we exclude "test/fake":
+    /*
     println!("\nEvents for today (no test/fake category):");
     let test_fake_category = Category::new("test", "fake");
     for event in &events {
@@ -104,6 +122,7 @@ pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
         }
         println!("{}", event);
     }
+     */
 
     Ok(())
 }
