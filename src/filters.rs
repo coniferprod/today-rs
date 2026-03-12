@@ -189,17 +189,26 @@ impl FilterSetBuilder {
     }
 
     pub fn month_day(mut self, month_day: MonthDay) -> FilterSetBuilder {
-        self.conditions.insert(Condition::Date(month_day));
+        let condition = Condition::Date(month_day);
+        if !self.conditions.contains(&condition) {
+            self.conditions.insert(condition);
+        }
         self
     }
 
     pub fn category(mut self, category: Category) -> FilterSetBuilder {
-        self.conditions.insert(Condition::Category(category));
+        let condition = Condition::Category(category);
+        if !self.conditions.contains(&condition) {
+            self.conditions.insert(condition);
+        }
         self
     }
 
     pub fn description(mut self, text: String) -> FilterSetBuilder {
-        self.conditions.insert(Condition::Text(text));
+        let condition = Condition::Text(text);
+        if !self.conditions.contains(&condition) {
+            self.conditions.insert(condition);
+        }
         self
     }
 
