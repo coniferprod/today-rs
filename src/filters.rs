@@ -139,9 +139,10 @@ impl FilterBuilder {
 
 // Implement event filter as a set:
 
+/*
 use std::collections::HashSet;
 
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub enum Condition {
     Null,  // all pass filter
     Date(MonthDay),
@@ -150,11 +151,11 @@ pub enum Condition {
 }
 
 #[derive(Debug)]
-pub struct EventFilterSet {
+pub struct EventFilter {
     conditions: HashSet<Condition>,
 }
 
-impl EventFilterSet {
+impl EventFilter {
     pub fn accepts(&self, event: &Event) -> bool {
         let mut results: Vec<bool> = Vec::new();
 
@@ -172,23 +173,27 @@ impl EventFilterSet {
 
         results.iter().all(|&x| x)
     }
+
+    pub fn has_condition(self, condition: &Condition) -> bool {
+        self.conditions.contains(condition)
+    }
 }
 
-pub struct FilterSetBuilder {
+pub struct FilterBuilder {
     conditions: HashSet<Condition>,
 }
 
-impl FilterSetBuilder {
-    pub fn new() -> FilterSetBuilder {
+impl FilterBuilder {
+    pub fn new() -> FilterBuilder {
         let conditions: HashSet<Condition> = 
             vec![Condition::Null].into_iter().collect();
 
-        FilterSetBuilder {
+        FilterBuilder {
             conditions
         }
     }
 
-    pub fn month_day(mut self, month_day: MonthDay) -> FilterSetBuilder {
+    pub fn month_day(mut self, month_day: MonthDay) -> FilterBuilder {
         let condition = Condition::Date(month_day);
         if !self.conditions.contains(&condition) {
             self.conditions.insert(condition);
@@ -196,7 +201,7 @@ impl FilterSetBuilder {
         self
     }
 
-    pub fn category(mut self, category: Category) -> FilterSetBuilder {
+    pub fn category(mut self, category: Category) -> FilterBuilder {
         let condition = Condition::Category(category);
         if !self.conditions.contains(&condition) {
             self.conditions.insert(condition);
@@ -204,7 +209,7 @@ impl FilterSetBuilder {
         self
     }
 
-    pub fn description(mut self, text: String) -> FilterSetBuilder {
+    pub fn description(mut self, text: String) -> FilterBuilder {
         let condition = Condition::Text(text);
         if !self.conditions.contains(&condition) {
             self.conditions.insert(condition);
@@ -212,9 +217,10 @@ impl FilterSetBuilder {
         self
     }
 
-    pub fn build(self) -> EventFilterSet {
-        EventFilterSet {
+    pub fn build(self) -> EventFilter {
+        EventFilter {
             conditions: self.conditions,
         }
     }
 }
+ */

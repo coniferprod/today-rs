@@ -1,15 +1,11 @@
-//mod events;
-//mod providers;
-//pub mod filters;
-// See https://users.rust-lang.org/t/crate-compiled-multiple-times-and-type-with-similar-name/110928
-
 use std::fs;
 use std::path::PathBuf;
 use today::{run, add_event, Config};
-use today::filters::FilterBuilder;
 use today::events::{Event, EventKind, Category, MonthDay};
+use today::filters::{EventFilter, FilterBuilder};
 use chrono::{NaiveDate, Local, Datelike};
 use clap::{Parser, Subcommand};
+use log;
 
 #[derive(Subcommand, Debug, Clone)]
 enum Command {
@@ -46,6 +42,8 @@ struct Args {
 }
 
 fn main() {
+    env_logger::init();
+    
     let args = Args::parse();
 
     let month_day = if let Some(md) = args.date {
@@ -54,9 +52,11 @@ fn main() {
         let today: NaiveDate = Local::now().date_naive();
         MonthDay::new(today.month(), today.day())
     };
-    let filter = FilterBuilder::new()
+
+    let filter: EventFilter = FilterBuilder::new()
         .month_day(month_day)
         .build();
+
 
     // TODO: Handle the exclude categories option
 
@@ -65,10 +65,10 @@ fn main() {
     match config_path {
         Some(path) => {
             let toml_path = path.join(format!("{}.toml", APP_NAME));
-            println!("Looking for configuration file '{}'", &toml_path.display());
+            log::info!("Looking for configuration file '{}'", &toml_path.display());
             let config_str = fs::read_to_string(toml_path).expect("existing configuration file");
             let config: Config = toml::from_str(&config_str).expect("valid configuration file");
-            println!("config: {:#?}", config);           
+            log::info!("config: {:#?}", config);           
 
             match args.cmd {
                 Some(Command::Providers) => {
@@ -78,7 +78,7 @@ fn main() {
                 },
 
                 Some(Command::Add { provider_name, date, description, category }) => {
-                    println!("provider_name = '{}'  date = '{}'  description = '{}'  category = '{}'",
+                    log::info!("provider_name = '{}'  date = '{}'  description = '{}'  category = '{}'",
                         provider_name, date, description, category);
                     let category = Category::from_str(&category);
                     let date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d").unwrap();

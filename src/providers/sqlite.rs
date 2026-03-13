@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use sqlite::{Connection, State};
 use chrono::{NaiveDate, Datelike, Local};
 use bitflags::bitflags_match;
+use log;
 
 use crate::events::{Event, Category};
 use crate::providers::EventProvider;
@@ -74,7 +75,7 @@ impl EventProvider for SQLiteProvider {
         event_query.push(' ');
         event_query.push_str(&where_clause);
 
-        eprintln!("SQLite database query: \"{}\"", event_query);
+        log::info!("SQLite database query: \"{}\"", event_query);
 
         let mut statement = connection.prepare(event_query).unwrap();
         while let Ok(State::Row) = statement.next() {
@@ -98,7 +99,7 @@ impl EventProvider for SQLiteProvider {
                 let insert_query = format!("INSERT INTO event (event_date, event_description, category_id) VALUES ('{}', '{}', {})", 
                     event_date_str, event.description(), category_id);
                 let connection = Connection::open(self.path.clone()).unwrap();
-                println!("Found existing category, about to run query: '{}'", insert_query);
+                log::info!("Found existing category, about to run query: '{}'", insert_query);
                 connection.execute(insert_query).unwrap();
             },
             None => {
@@ -112,7 +113,7 @@ impl EventProvider for SQLiteProvider {
                 let insert_category_query = format!("INSERT INTO category (primary_name, secondary_name) VALUES ('{}', {})",
                     primary_str, secondary_str);
                 let connection = Connection::open(self.path.clone()).unwrap();
-                println!("Existing category not found, about to run query '{}'", insert_category_query);
+                log::info!("Existing category not found, about to run query '{}'", insert_category_query);
                 connection.execute(insert_category_query).unwrap();
 
                 // Looks like the sqlite crate does not have a way of getting the ID
@@ -124,7 +125,7 @@ impl EventProvider for SQLiteProvider {
                         let event_date_str = format!("{:04}-{}", event.year(), event.month_day());
                         let insert_event_query = format!("INSERT INTO event (event_date, event_description, category_id) VALUES ('{}', '{}', '{}')", 
                             event_date_str, event.description(), category_id);
-                        println!("Existing category found, about to run query '{}'", insert_event_query);
+                        log::info!("Existing category found, about to run query '{}'", insert_event_query);
                         connection.execute(insert_event_query).unwrap();
                     },
                     None => {

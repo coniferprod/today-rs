@@ -11,13 +11,14 @@ pub mod filters;
 use std::error::Error;
 use std::path::Path;
 use serde::Deserialize;
+use chrono::{NaiveDate, Local, Datelike};
 use crate::events::{Event, EventKind, Category, MonthDay};
 use crate::providers::{EventProvider, SimpleProvider};
 use crate::providers::textfile::TextFileProvider;
 use crate::providers::csvfile::CSVFileProvider;
 use crate::providers::sqlite::SQLiteProvider;
 use crate::providers::web::WebProvider;
-use crate::filters::{EventFilter, FilterBuilder, EventFilterSet, FilterSetBuilder};
+use crate::filters::{EventFilter, FilterBuilder};
 
 #[derive(Deserialize, Debug)]
 pub struct ProviderConfig {
@@ -60,8 +61,10 @@ fn create_providers(config: &Config, config_path: &Path) -> Vec::<Box<dyn EventP
         }
     }
 
+    /*
     let test_provider = SimpleProvider::new("test");
     providers.push(Box::new(test_provider));
+    */
 
     providers
 }
@@ -72,34 +75,29 @@ pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
 
     let mut events: Vec<Event> = Vec::new();
 
-    let today: NaiveDate = Local::now().date_naive();
-
-    let filter: EventFilter = FilterBuilder::new()
-        .month_day(MonthDay::new(today.month(), today.day()))
-        .build();
-    /*
-    let filter = FilterSetBuilder::new()
-        //.month_day(MonthDay::new(today.month(), today.day()))
-        .category(Category::new("programming", "rust"))
-        .build()
-    */
-
     let providers = create_providers(config, config_path);
 
     let mut count = 0;
     for provider in providers {
         provider.get_events(&filter, &mut events);  // polymorphism!
         let new_count = events.len();
-        println!(
+        log::info!(
             "Got {} events from provider '{}'", 
             new_count - count,
             provider.name());
         count = new_count;
     }
 
+    let test_fake_category = Category::new("test", "fake");
+
     let mut singular_events: Vec<&Event> = Vec::new();
     let mut annual_events: Vec<&Event> = Vec::new();
     for event in &events {
+        // Filter out "test/fake" events
+        if event.category() == test_fake_category {
+            continue;
+        }
+
         match event.kind() {
             EventKind::Singular(_) => singular_events.push(event),
             EventKind::Annual(_) | EventKind::RuleBased(_) =>

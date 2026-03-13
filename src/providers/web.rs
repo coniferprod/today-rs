@@ -54,7 +54,7 @@ impl EventProvider for WebProvider {
             month_day.day());
 
         let url = format!("{}?{}", &self.url, date_parameter);
-        println!("web URL = {}", &url);
+        log::info!("web URL = {}", &url);
 
         let client = Client::new();
         let request = client.get(&url).send();
@@ -68,8 +68,7 @@ impl EventProvider for WebProvider {
         }
 
         let json_events = response.json::<Vec<JSONEvent>>().unwrap();
-        println!("Got {} events from JSON", json_events.len());
-
+        //println!("Got {} events from JSON", json_events.len());
         //println!("body = {:?}", response.text().unwrap());
         //eprintln!("JSON = {:?}", json);
 
