@@ -17,7 +17,7 @@ use crate::providers::textfile::TextFileProvider;
 use crate::providers::csvfile::CSVFileProvider;
 use crate::providers::sqlite::SQLiteProvider;
 use crate::providers::web::WebProvider;
-use crate::filters::{EventFilter, FilterBuilder};
+use crate::filters::{EventFilter, FilterBuilder, EventFilterSet, FilterSetBuilder};
 
 #[derive(Deserialize, Debug)]
 pub struct ProviderConfig {
@@ -71,6 +71,18 @@ pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
     birthday::handle_birthday();
 
     let mut events: Vec<Event> = Vec::new();
+
+    let today: NaiveDate = Local::now().date_naive();
+
+    let filter: EventFilter = FilterBuilder::new()
+        .month_day(MonthDay::new(today.month(), today.day()))
+        .build();
+    /*
+    let filter = FilterSetBuilder::new()
+        //.month_day(MonthDay::new(today.month(), today.day()))
+        .category(Category::new("programming", "rust"))
+        .build()
+    */
 
     let providers = create_providers(config, config_path);
 

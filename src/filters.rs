@@ -136,3 +136,85 @@ impl FilterBuilder {
         }
     }
 }
+
+// Implement event filter as a set:
+
+use std::collections::HashSet;
+
+#[derive(Debug, Eq, Hash, PartialEq)]
+pub enum Condition {
+    Null,  // all pass filter
+    Date(MonthDay),
+    Category(Category),
+    Text(String),
+}
+
+#[derive(Debug)]
+pub struct EventFilterSet {
+    conditions: HashSet<Condition>,
+}
+
+impl EventFilterSet {
+    pub fn accepts(&self, event: &Event) -> bool {
+        let mut results: Vec<bool> = Vec::new();
+
+        for condition in &self.conditions {
+            match condition {
+                Condition::Null => results.push(true),
+                Condition::Date(month_day) =>
+                    results.push(event.month_day() == *month_day),
+                Condition::Category(category) =>
+                    results.push(event.category() == *category),
+                Condition::Text(text) =>
+                    results.push(event.description().contains(*&text))
+            }
+        }
+
+        results.iter().all(|&x| x)
+    }
+}
+
+pub struct FilterSetBuilder {
+    conditions: HashSet<Condition>,
+}
+
+impl FilterSetBuilder {
+    pub fn new() -> FilterSetBuilder {
+        let conditions: HashSet<Condition> = 
+            vec![Condition::Null].into_iter().collect();
+
+        FilterSetBuilder {
+            conditions
+        }
+    }
+
+    pub fn month_day(mut self, month_day: MonthDay) -> FilterSetBuilder {
+        let condition = Condition::Date(month_day);
+        if !self.conditions.contains(&condition) {
+            self.conditions.insert(condition);
+        }
+        self
+    }
+
+    pub fn category(mut self, category: Category) -> FilterSetBuilder {
+        let condition = Condition::Category(category);
+        if !self.conditions.contains(&condition) {
+            self.conditions.insert(condition);
+        }
+        self
+    }
+
+    pub fn description(mut self, text: String) -> FilterSetBuilder {
+        let condition = Condition::Text(text);
+        if !self.conditions.contains(&condition) {
+            self.conditions.insert(condition);
+        }
+        self
+    }
+
+    pub fn build(self) -> EventFilterSet {
+        EventFilterSet {
+            conditions: self.conditions,
+        }
+    }
+}

@@ -53,7 +53,7 @@ impl Weekday {
     }
 }
 
-#[derive(Debug, Clone, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Eq, Ord, PartialEq, PartialOrd, Hash)]
 pub struct MonthDay {
     month: u32,
     day: u32,
@@ -84,7 +84,7 @@ impl fmt::Display for MonthDay {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct Category {
     primary: String,
     secondary: Option<String>,
