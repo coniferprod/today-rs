@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use today::{run, add_event, Config};
-use today::events::{Event, EventKind, Category, MonthDay};
+use today::events::{Event, Category, MonthDay};
 use today::filters::{EventFilter, FilterBuilder};
 use chrono::{NaiveDate, Local, Datelike};
 use clap::{Parser, Subcommand};
@@ -43,7 +43,7 @@ struct Args {
 
 fn main() {
     env_logger::init();
-    
+
     let args = Args::parse();
 
     let month_day = if let Some(md) = args.date {

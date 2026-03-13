@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 
 use sqlite::{Connection, State};
-use chrono::{NaiveDate, Datelike, Local};
+use chrono::NaiveDate;
 use bitflags::bitflags_match;
 use log;
 
@@ -222,7 +222,7 @@ mod tests {
     use std::collections::HashMap;
     use crate::{events::Category, filters::FilterBuilder};
     use crate::events::MonthDay;
-    use chrono::{NaiveDate, Local, Datelike};
+    use chrono::{NaiveDate, Datelike};
 
     // Creates an in-memory SQLite database with some tables,
     // then inserts one category (id=1, primary=test, secondary=NULL)
@@ -312,7 +312,7 @@ INSERT INTO event (event_date, event_description, category_id)
 
     #[test]
     fn make_category_part_empty() {
-        let mut category_map: HashMap<i64, Category> = HashMap::new();
+        let category_map: HashMap<i64, Category> = HashMap::new();
         let filter = FilterBuilder::new()
             .build();
 

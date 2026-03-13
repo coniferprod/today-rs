@@ -11,14 +11,15 @@ pub mod filters;
 use std::error::Error;
 use std::path::Path;
 use serde::Deserialize;
-use chrono::{NaiveDate, Local, Datelike};
-use crate::events::{Event, EventKind, Category, MonthDay};
-use crate::providers::{EventProvider, SimpleProvider};
-use crate::providers::textfile::TextFileProvider;
-use crate::providers::csvfile::CSVFileProvider;
-use crate::providers::sqlite::SQLiteProvider;
-use crate::providers::web::WebProvider;
-use crate::filters::{EventFilter, FilterBuilder};
+use crate::events::{Event, EventKind, Category};
+use crate::providers::{
+    EventProvider, 
+    textfile::TextFileProvider,
+    csvfile::CSVFileProvider,
+    sqlite::SQLiteProvider,
+    web::WebProvider,
+};
+use crate::filters::EventFilter;
 
 #[derive(Deserialize, Debug)]
 pub struct ProviderConfig {

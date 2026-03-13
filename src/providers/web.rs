@@ -1,13 +1,8 @@
-use std::path::{Path, PathBuf};
-use std::collections::HashMap;
-
-use chrono::{NaiveDate, Datelike, Local};
+use chrono::NaiveDate;
 use reqwest::{blocking::Client, blocking::Response};
 use serde::Deserialize;
-use serde_json;
-use bitflags::bitflags_match;
 
-use crate::events::{Event, Category, MonthDay};
+use crate::events::{Event, Category};
 use crate::providers::EventProvider;
 use crate::providers::EventProviderError;
 use crate::filters::EventFilter;
