@@ -147,12 +147,8 @@ impl EventProvider for SQLiteProvider {
 }
 
 fn make_date_part(filter: &EventFilter) -> String {
-    if let Some(month_day) = filter.month_day() {
-        let md = format!("{:02}-{:02}", month_day.month(), month_day.day());
-        format!("strftime('%m-%d', event_date) = '{}'", md)
-    } else {
-        "".to_string()
-    }
+    let md = format!("{:02}-{:02}", filter.month_day().month(), filter.month_day().day());
+    format!("strftime('%m-%d', event_date) = '{}'", md)
 }
 
 fn make_category_part(filter: &EventFilter, category_map: &HashMap<i64, Category>) -> String {
@@ -180,8 +176,8 @@ fn make_category_part(filter: &EventFilter, category_map: &HashMap<i64, Category
 }
 
 fn make_text_part(filter: &EventFilter) -> String {
-    if let Some(pattern) = filter.pattern() {
-        format!("event_description LIKE '%{}%'", pattern)
+    if let Some(text) = filter.text() {
+        format!("event_description LIKE '%{}%'", text)
     } else {
         "".to_string()
     }
@@ -190,30 +186,26 @@ fn make_text_part(filter: &EventFilter) -> String {
 fn make_where_clause(filter: &EventFilter, category_map: &HashMap<i64, Category>) -> String {
     let condition = 
         bitflags_match!(filter.flags(), {
-            FilterFlags::MONTH_DAY => {
-                make_date_part(filter)
-            },
             FilterFlags::CATEGORY => {
                 make_category_part(filter, category_map)
-            },
-            FilterFlags::MONTH_DAY | FilterFlags::CATEGORY => {
-                format!("{} AND {}", make_date_part(filter), make_category_part(filter, category_map))
             },
             FilterFlags::TEXT => {
                 make_text_part(filter)
             },
-            FilterFlags::MONTH_DAY | FilterFlags::CATEGORY | FilterFlags::TEXT => {
+            FilterFlags::CATEGORY | FilterFlags::TEXT => {
                 format!(
-                    "{} AND {} AND {}", 
-                    make_date_part(filter), 
+                    "{} AND {}", 
                     make_category_part(filter, category_map),
                     make_text_part(filter))
             },
             _ => "".to_string(),
         }).to_string();
 
-    let mut result = "WHERE ".to_string();
-    result.push_str(&condition);
+    let date_part = make_date_part(filter);
+    let mut result = format!("WHERE {}", date_part);
+    if condition != "" {
+        result.push_str(&format!(" AND {}", condition));
+    }
     result
 }
 
@@ -290,10 +282,8 @@ INSERT INTO event (event_date, event_description, category_id)
     #[test]
     fn make_date_part() {
         let today = NaiveDate::from_ymd_opt(2026, 3, 7).unwrap();
-        let filter = FilterBuilder::new()
-            .month_day(MonthDay::new(today.month(), today.day()))
-            .build();
-        
+        let filter = FilterBuilder::new(MonthDay::new(today.month(), today.day()))
+            .build();        
         let date_part = crate::providers::sqlite::make_date_part(&filter);
         assert_eq!(date_part, "strftime('%m-%d', event_date) = '03-07'")
     }
@@ -302,10 +292,10 @@ INSERT INTO event (event_date, event_description, category_id)
     fn make_category_part_nonempty() {
         let mut category_map: HashMap<i64, Category> = HashMap::new();
         category_map.insert(1, Category::from_primary("test"));
-        let filter = FilterBuilder::new()
+        let today = NaiveDate::from_ymd_opt(2026, 3, 7).unwrap();
+        let filter = FilterBuilder::new(MonthDay::new(today.month(), today.day()))
             .category(Category::from_primary("test"))
             .build();
-
         let category_part = crate::providers::sqlite::make_category_part(&filter, &category_map);
         assert_eq!(category_part, "category_id = 1");
     }
@@ -313,9 +303,9 @@ INSERT INTO event (event_date, event_description, category_id)
     #[test]
     fn make_category_part_empty() {
         let category_map: HashMap<i64, Category> = HashMap::new();
-        let filter = FilterBuilder::new()
+        let today = NaiveDate::from_ymd_opt(2026, 3, 7).unwrap();
+        let filter = FilterBuilder::new(MonthDay::new(today.month(), today.day()))
             .build();
-
         let category_part = crate::providers::sqlite::make_category_part(&filter, &category_map);
         assert_eq!(category_part, "");
     }

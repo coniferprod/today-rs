@@ -34,14 +34,7 @@ impl EventProvider for WebProvider {
     }
 
     fn get_events(&self, filter: &EventFilter, events: &mut Vec<Event>) {
-        // We need a date parameter for the URL, so if the filter
-        // does not specify it, we are done.
-        if let None = filter.month_day() {
-            eprintln!("Need a month-day for the URL parameter `date`");
-            return;
-        }
-
-        let month_day = filter.month_day().unwrap();
+        let month_day = filter.month_day();
 
         let date_parameter = format!(
             "date={:02}-{:02}", 

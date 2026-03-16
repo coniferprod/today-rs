@@ -95,10 +95,12 @@ pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
     let mut annual_events: Vec<&Event> = Vec::new();
     for event in &events {
         // Filter out "test/fake" events
+        /*
         if event.category() == test_fake_category {
             continue;
         }
-
+        */
+        
         match event.kind() {
             EventKind::Singular(_) => singular_events.push(event),
             EventKind::Annual(_) | EventKind::RuleBased(_) =>

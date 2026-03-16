@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use today::{run, add_event, Config};
 use today::events::{Event, Category, MonthDay};
-use today::filters::{EventFilter, FilterBuilder};
+use today::filters::FilterBuilder;
 use chrono::{NaiveDate, Local, Datelike};
 use clap::{Parser, Subcommand};
 use log;
@@ -53,10 +53,9 @@ fn main() {
         MonthDay::new(today.month(), today.day())
     };
 
-    let filter: EventFilter = FilterBuilder::new()
-        .month_day(month_day)
+    let filter = FilterBuilder::new(month_day)
+        .text("Sony".to_string())
         .build();
-
 
     // TODO: Handle the exclude categories option
 
