@@ -53,12 +53,26 @@ fn main() {
         MonthDay::new(today.month(), today.day())
     };
 
+    // Handle the exclude categories option
+    let mut categories: Vec<Category> = Vec::new();
+    if let Some(exclude) = args.exclude {
+        let parts: Vec<&str> = exclude.split(',').collect();
+        for part in parts.iter() {
+            let category = Category::from_str(part);
+            categories.push(category);
+        }
+        
+        log::info!("Excluded categories:");
+        for category in &categories {
+            log::info!("- {}", category);
+        }
+        log::info!("These exclusions currently have no effect.");
+    }
+
     let filter = FilterBuilder::new()
         .month_day(month_day)
         //.text("Sony".to_string())
         .build();
-
-    // TODO: Handle the exclude categories option
 
     const APP_NAME: &str = "today";
     let config_path = get_config_path(APP_NAME);
