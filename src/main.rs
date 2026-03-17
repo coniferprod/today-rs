@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
-use today::{run, add_event, Config};
+use today::{run, add_event, Config, create_providers};
 use today::events::{Event, Category, MonthDay};
 use today::filters::FilterBuilder;
 use chrono::{NaiveDate, Local, Datelike};
@@ -72,8 +72,12 @@ fn main() {
 
             match args.cmd {
                 Some(Command::Providers) => {
-                    for provider in config.providers {
-                        println!("{}", provider.name);
+                    let providers = create_providers(&config, &path);
+                    for provider in providers {
+                        println!(
+                            "{}{}", 
+                            provider.name(),
+                            if provider.is_add_supported() { "*" } else { "" });                        
                     }
                 },
 

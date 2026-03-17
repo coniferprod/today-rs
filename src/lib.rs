@@ -33,7 +33,7 @@ pub struct Config {
     pub providers: Vec::<ProviderConfig>,
 }
 
-fn create_providers(config: &Config, config_path: &Path) -> Vec::<Box<dyn EventProvider>> {
+pub fn create_providers(config: &Config, config_path: &Path) -> Vec::<Box<dyn EventProvider>> {
     // Try to create all the event providers specified in `config`.
     // Put them in a vector of trait objects.
     let mut providers: Vec::<Box<dyn EventProvider>> = Vec::new();
