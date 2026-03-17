@@ -34,7 +34,12 @@ impl EventProvider for WebProvider {
     }
 
     fn get_events(&self, filter: &EventFilter, events: &mut Vec<Event>) {
-        let month_day = filter.month_day();
+        if filter.month_day().is_none() {
+            eprintln!("No month-day in filter");
+            return;
+        }
+
+        let month_day = filter.month_day().unwrap();
 
         let date_parameter = format!(
             "date={:02}-{:02}", 

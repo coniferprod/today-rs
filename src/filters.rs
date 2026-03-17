@@ -1,118 +1,145 @@
-use bitflags::{bitflags, bitflags_match};
+use std::collections::HashSet;
 
 use crate::events::{Event, MonthDay, Category};
 
-bitflags! {
-    #[derive(Debug, Clone, PartialEq, Default)]
-    pub struct FilterFlags: u32 {
-        const NULL      = 0b00000000;
-        const CATEGORY  = 0b00000001;
-        const TEXT      = 0b00000010;
-    }
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum FilterOption {
+    MonthDay(MonthDay),
+    Category(Category),
+    Text(String),
 }
 
-#[derive(Debug)]
 pub struct EventFilter {
-    flags: FilterFlags,
-    month_day: MonthDay,
-    category: Option<Category>,
-    text: Option<String>,
+    options: HashSet<FilterOption>,
 }
 
 impl EventFilter {
+    pub fn new() -> Self {
+        Self {
+            options: HashSet::new(),
+        }
+    }
+
     pub fn accepts(&self, event: &Event) -> bool {
-        // If the day does not match, don't accept the event.
-        if event.month_day() != self.month_day {
+        // If the option set is empty, this is an all-pass filter.
+        if self.options.is_empty() {
             return false;
         }
 
-        // Now we know that the month-day matches;
-        // check any additional conditions.
-        bitflags_match!(self.flags, {
-            FilterFlags::CATEGORY => {
-                if let Some(category) = &self.category {
-                    event.category() == *category
-                } else {
-                    false
-                }
-            },
-            FilterFlags::TEXT => {
-                if let Some(text) = &self.text {
+        // Collect the results from various options into a vector.
+        let mut results: Vec<bool> = Vec::new();
+
+        for option in self.options.iter() {
+            let result = match option {
+                FilterOption::MonthDay(month_day) => {
+                    *month_day == event.month_day()
+                },
+                FilterOption::Category(category) => {
+                    *category == event.category()
+                },
+                FilterOption::Text(text) => {
                     event.description().contains(text)
-                } else {
-                    false
                 }
-            },
-            FilterFlags::CATEGORY | FilterFlags::TEXT => {
-                if let (Some(category), Some(text)) = (&self.category, &self.text) {
-                    event.category() == *category
-                        && event.description().contains(text)
-                } else {
-                    false
-                }
-            },
-            FilterFlags::NULL => true,
-            _ => false,
-        })
+            };
+            results.push(result);
+        }
+
+        // If the results vector contains only true values,
+        // the event will be accepted, otherwise rejected.
+        results.iter().all(|&option| option)
     }
 
-    pub fn flags(&self) -> FilterFlags {
-        self.flags.clone()
+    pub fn contains_month_day(&self) -> bool {
+        self.options.iter().any(|option| matches!(option, &FilterOption::MonthDay(_)))    
     }
 
-    pub fn month_day(&self) -> MonthDay {
-        self.month_day.clone()
+    pub fn contains_category(&self) -> bool {
+        self.options.iter().any(|option| matches!(option, &FilterOption::Category(_)))
+    }
+
+    pub fn contains_text(&self) -> bool {
+        self.options.iter().any(|option| matches!(option, &FilterOption::Text(_)))
+    }
+
+    pub fn month_day(&self) -> Option<MonthDay> {
+        for option in self.options.iter() {
+            match option {
+                FilterOption::MonthDay(month_day) => return Some(month_day.clone()),
+                _ => (),
+            }
+        }
+
+        // All checked, not found
+        None
     }
 
     pub fn category(&self) -> Option<Category> {
-        self.category.clone()
+        for option in self.options.iter() {
+            match option {
+                FilterOption::Category(category) => return Some(category.clone()),
+                _ => (),
+            }
+        }
+        None
     }
 
     pub fn text(&self) -> Option<String> {
-        self.text.clone()
+        for option in self.options.iter() {
+            match option {
+                FilterOption::Text(text) => return Some(text.clone()),
+                _ => (),
+            }
+        }
+        None
     }
 }
 
 pub struct FilterBuilder {
-    flags: FilterFlags,
-    month_day: MonthDay,
-    category: Option<Category>,
-    text: Option<String>,
+    options: HashSet<FilterOption>,
 }
 
 impl FilterBuilder {
-    pub fn new(month_day: MonthDay) -> FilterBuilder {
+    pub fn new() -> FilterBuilder {
         FilterBuilder {
-            flags: FilterFlags::NULL,
-            month_day,
-            category: None,
-            text: None,
+            options: HashSet::new(),
         }
     }
 
-    pub fn flags(mut self, flags: FilterFlags) -> FilterBuilder {
-        self.flags = flags;
+    pub fn month_day(mut self, month_day: MonthDay) -> FilterBuilder {
+        self.options.insert(FilterOption::MonthDay(month_day));
         self
     }
 
     pub fn category(mut self, category: Category) -> FilterBuilder {
-        self.category = Some(category);
-        self.flags.insert(FilterFlags::CATEGORY);
+        self.options.insert(FilterOption::Category(category));
         self
     }
 
     pub fn text(mut self, text: String) -> FilterBuilder {
-        self.text = Some(text);
-        self.flags.insert(FilterFlags::TEXT);
+        self.options.insert(FilterOption::Text(text));
         self
     }
 
     pub fn build(self) -> EventFilter {
         EventFilter {
-            flags: self.flags,
-            month_day: self.month_day,
-            category: self.category,
-            text: self.text,
+            options: self.options,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{NaiveDate, Local, Datelike};
+
+    #[test]
+    fn filter_contains_month_day() {
+        let today: NaiveDate = Local::now().date_naive();
+        let md: MonthDay = MonthDay::new(today.month(), today.day());
+
+        let filter = FilterBuilder::new()
+            .month_day(md)
+            .build();
+        assert!(filter.contains_month_day());
     }
 }

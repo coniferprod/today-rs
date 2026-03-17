@@ -53,8 +53,9 @@ fn main() {
         MonthDay::new(today.month(), today.day())
     };
 
-    let filter = FilterBuilder::new(month_day)
-        .text("Sony".to_string())
+    let filter = FilterBuilder::new()
+        .month_day(month_day)
+        //.text("Sony".to_string())
         .build();
 
     // TODO: Handle the exclude categories option
