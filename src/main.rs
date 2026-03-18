@@ -52,6 +52,7 @@ fn main() {
         let today: NaiveDate = Local::now().date_naive();
         MonthDay::new(today.month(), today.day())
     };
+    log::debug!("month_day = {}", month_day);
 
     // Handle the exclude categories option
     let mut categories: Vec<Category> = Vec::new();
@@ -79,10 +80,10 @@ fn main() {
     match config_path {
         Some(path) => {
             let toml_path = path.join(format!("{}.toml", APP_NAME));
-            log::info!("Looking for configuration file '{}'", &toml_path.display());
+            log::debug!("Looking for configuration file '{}'", &toml_path.display());
             let config_str = fs::read_to_string(toml_path).expect("existing configuration file");
             let config: Config = toml::from_str(&config_str).expect("valid configuration file");
-            log::info!("config: {:#?}", config);           
+            log::debug!("config: {:#?}", config);           
 
             match args.cmd {
                 Some(Command::Providers) => {
@@ -96,7 +97,7 @@ fn main() {
                 },
 
                 Some(Command::Add { provider_name, date, description, category }) => {
-                    log::info!("provider_name = '{}'  date = '{}'  description = '{}'  category = '{}'",
+                    log::debug!("provider_name = '{}'  date = '{}'  description = '{}'  category = '{}'",
                         provider_name, date, description, category);
                     let category = Category::from_str(&category);
                     let date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d").unwrap();

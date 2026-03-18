@@ -7,6 +7,7 @@ mod birthday;
 pub mod events;
 pub mod providers;
 pub mod filters;
+pub mod manager;
 
 use std::error::Error;
 use std::path::Path;
@@ -20,6 +21,7 @@ use crate::providers::{
     web::WebProvider,
 };
 use crate::filters::EventFilter;
+use crate::manager::EventManager;
 
 #[derive(Deserialize, Debug)]
 pub struct ProviderConfig {
@@ -74,6 +76,8 @@ pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
         -> Result<(), Box<dyn Error>> {
     birthday::handle_birthday();
 
+    // This block creates the providers and gets events:
+    /*
     let mut events: Vec<Event> = Vec::new();
 
     let providers = create_providers(config, config_path);
@@ -88,6 +92,22 @@ pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
             provider.name());
         count = new_count;
     }
+    */
+
+    // This block makes an event manager and adds the providers,
+    // then delegates getting events to the manager:
+    let mut manager = EventManager::new(config_path);
+    for provider_config in &config.providers {
+        if manager.add_provider(&provider_config) {
+            log::debug!("Successfully added {} event provider '{}'",
+                provider_config.kind,
+                provider_config.name);
+        } else {
+            log::debug!("Unable to add event provider: {:#?}",
+                provider_config);
+        }
+    }
+    let events = manager.get_events(&filter);
 
     let test_fake_category = Category::new("test", "fake");
 
