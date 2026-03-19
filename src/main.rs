@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use today::{run, add_event, Config, create_providers};
 use today::events::{Event, Category, MonthDay};
 use today::filters::FilterBuilder;
+use today::birthday::handle_birthday;
 use chrono::{NaiveDate, Local, Datelike};
 use clap::{Parser, Subcommand};
 use log;
@@ -39,12 +40,19 @@ struct Args {
 
     #[arg(short, long, help = "Categories to exclude, comma-separated (a/b,c/d)")]
     exclude: Option<String>,
+
+    #[arg(short, long, help = "No age calculation or birthday message")]
+    no_birthday: bool,
 }
 
 fn main() {
     env_logger::init();
 
     let args = Args::parse();
+
+    if !args.no_birthday {
+        today::birthday::handle_birthday();
+    }
 
     let month_day = if let Some(md) = args.date {
         MonthDay::from_str(&md)
@@ -72,8 +80,16 @@ fn main() {
 
     let filter = FilterBuilder::new()
         .month_day(month_day)
-        //.text("Sony".to_string())
         .build();
+    //let filter = FilterBuilder::new().build();
+
+
+    /*
+    let filter = FilterBuilder::new()
+        .category(Category::new("programming", "rust"))
+        .text("released".to_string())
+        .build();
+ */
 
     const APP_NAME: &str = "today";
     let config_path = get_config_path(APP_NAME);
@@ -83,7 +99,7 @@ fn main() {
             log::debug!("Looking for configuration file '{}'", &toml_path.display());
             let config_str = fs::read_to_string(toml_path).expect("existing configuration file");
             let config: Config = toml::from_str(&config_str).expect("valid configuration file");
-            log::debug!("config: {:#?}", config);           
+            log::debug!("config: {:#?}", config);
 
             match args.cmd {
                 Some(Command::Providers) => {

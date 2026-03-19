@@ -3,7 +3,7 @@
 //! This crate defines the program configuration items and
 //! has the `run` function to actually run the program.
 
-mod birthday;
+pub mod birthday;
 pub mod events;
 pub mod providers;
 pub mod filters;
@@ -74,7 +74,7 @@ pub fn create_providers(config: &Config, config_path: &Path) -> Vec::<Box<dyn Ev
 
 pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
         -> Result<(), Box<dyn Error>> {
-    birthday::handle_birthday();
+    //birthday::handle_birthday();
 
     // This block creates the providers and gets events:
     /*
@@ -107,6 +107,7 @@ pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
                 provider_config);
         }
     }
+
     let events = manager.get_events(&filter);
 
     let test_fake_category = Category::new("test", "fake");

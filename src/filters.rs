@@ -9,6 +9,7 @@ pub enum FilterOption {
     Text(String),
 }
 
+#[derive(Debug)]
 pub struct EventFilter {
     options: HashSet<FilterOption>,
 }
@@ -23,7 +24,7 @@ impl EventFilter {
     pub fn accepts(&self, event: &Event) -> bool {
         // If the option set is empty, this is an all-pass filter.
         if self.options.is_empty() {
-            return false;
+            return true;
         }
 
         // Collect the results from various options into a vector.
@@ -44,8 +45,9 @@ impl EventFilter {
             results.push(result);
         }
 
-        // If the results vector contains only true values,
-        // the event will be accepted, otherwise rejected.
+        // If the results vector contains only `true` values,
+        // all the options match, and the event will be accepted, 
+        // otherwise it will be rejected by the filter.
         results.iter().all(|&option| option)
     }
 
@@ -136,10 +138,84 @@ mod tests {
     fn filter_contains_month_day() {
         let today: NaiveDate = Local::now().date_naive();
         let md: MonthDay = MonthDay::new(today.month(), today.day());
-
         let filter = FilterBuilder::new()
             .month_day(md)
             .build();
         assert!(filter.contains_month_day());
+    }
+
+    #[test]
+    fn filter_accepts_month_day() {
+        let event = Event::new_singular(
+            NaiveDate::from_ymd_opt(2026, 3, 17).unwrap(), 
+            "Test event for March 17".to_string(), 
+            Category::from_primary("test"));
+        let filter = FilterBuilder::new()
+            .month_day(MonthDay::new(3, 17))
+            .build();
+        assert!(filter.accepts(&event));
+    }
+
+    #[test]
+    fn filter_accepts_category() {
+        let rust_category = Category::new("programming", "rust");
+        let event = Event::new_singular(
+            NaiveDate::from_ymd_opt(2026, 3, 5).unwrap(), 
+            "Rust 1.94.0 released".to_string(), 
+            rust_category.clone());
+        let filter = FilterBuilder::new()
+            .category(rust_category.clone())
+            .build();
+        assert!(filter.accepts(&event));
+    }
+
+    #[test]
+    fn filter_accepts_text() {
+        let rust_category = Category::new("programming", "rust");
+        let event = Event::new_singular(
+            NaiveDate::from_ymd_opt(2026, 3, 5).unwrap(), 
+            "Rust 1.94.0 released".to_string(), 
+            rust_category.clone());
+        let filter = FilterBuilder::new()
+            .text("Rust".to_string())
+            .build();
+        assert!(filter.accepts(&event));
+    }
+
+    #[test]
+    fn filter_accepts_anything() {
+        let rust_category = Category::new("programming", "rust");
+        let event = Event::new_singular(
+            NaiveDate::from_ymd_opt(2026, 3, 5).unwrap(), 
+            "Rust 1.94.0 released".to_string(), 
+            rust_category.clone());
+        let filter = FilterBuilder::new()
+            .build();
+        assert!(filter.accepts(&event));
+    }
+
+    #[test]
+    fn build_filter_no_options() {
+        let filter = FilterBuilder::new()
+            .build();
+        let contains = [
+            filter.contains_month_day(),
+            filter.contains_category(),
+            filter.contains_text()
+        ];
+        assert_eq!(contains, [false, false, false]);
+    }
+
+    #[test]
+    fn build_filter_month_day_only() {
+        let filter = FilterBuilder::new()
+            .month_day(MonthDay::new(3, 17))
+            .build();
+        let contains = [
+            filter.contains_month_day(),
+            filter.contains_category(),
+            filter.contains_text()
+        ];
+        assert_eq!(contains, [true, false, false]);
     }
 }
