@@ -1,15 +1,13 @@
 use std::path::{Path, PathBuf};
-use std::fs::{File, OpenOptions};
-use std::io::{BufReader, BufRead, BufWriter, Write};
-use std::fmt;
-use std::thread::current;
+use std::fs::File;
+use std::io::BufReader;
 
-use chrono::{NaiveDate, Local, Datelike};
+use chrono::{NaiveDate, Local};
 use xml::reader::{EventReader, XmlEvent};
 use log;
 
 use crate::EventProvider;
-use crate::events::{Event, Category, MonthDay, EventKind};
+use crate::events::{Event, Category};
 use crate::filters::EventFilter;
 use crate::providers::EventProviderError;
 
@@ -34,74 +32,52 @@ impl EventProvider for XMLFileProvider {
         let file = BufReader::new(file);
         let parser = EventReader::new(file);
 
-        let mut depth = 0;
-
-        let mut xml_events: Vec<Event> = Vec::new();
-
-        let mut current_event: Event;
-        let mut current_date: Option<NaiveDate> = None;
+        let mut current_date: NaiveDate = Local::now().date_naive();
+        let mut current_description: String = String::new();
+        let mut current_category: Category = Category::from_primary("test");
 
         let mut content = String::new();
         for e in parser {
-            let mut current_description: Option<String> = None;
-            let mut current_category: Option<Category> = None;
     
             match e {
                 Ok(XmlEvent::StartElement { name, .. }) => {
                     match name.local_name.as_str() {
-                        "events" => {
-                            xml_events.clear();
-                        },
-                        "event" => {
-                            current_description = None;
-                            //content.clear();
-                        },
-                        "date" => {
-                            current_date = None;
-                            //content.clear();
-                        },
-                        "description" => {
-                            current_description = Some(String::new());
-                            //content.clear();
-                        },
-                        "category" => {
-                            current_category = None;
-                            //content.clear();
-                        },
+                        "description" => current_description.clear(),
                         _ => {}
                     }
-
-                    println!("{:spaces$}+{name}", "", spaces = depth * 2);
-                    depth += 1;
                 }
 
                 Ok(XmlEvent::EndElement { name }) => {
                     match name.local_name.as_str() {
-                        "events" => {
-                            return;
-                        },
+                        "events" => return,
                         "event" => {
-                            current_event = Event::new_singular(
-                                current_date.unwrap(), 
-                                current_description.unwrap(), 
-                                current_category.unwrap());
-                            xml_events.push(current_event);
+                            let event = Event::new_singular(
+                                current_date, 
+                                current_description.clone(), 
+                                current_category.clone());
+                            log::debug!("New event: {}", &event);
+                            if filter.accepts(&event) {
+                                events.push(event);
+                            } else {
+                                log::debug!("Filter rejects event");
+                            }
                         },
                         "date" => {
-                            log::debug!("Parsing date element, content = '{}'", &content);
-                            current_date = Some(NaiveDate::parse_from_str(&content, "%F").expect("invalid date"));
+                            log::debug!("date: content={}", &content);
+                            current_date = NaiveDate::parse_from_str(&content, "%F")
+                                .expect("invalid date");
+                            content.clear();
                         },
                         "description" => {
-                            current_description = Some(content);
+                            current_description = content.clone();
+                            content.clear();
                         },
                         "category" => {
-                            current_category = Some(Category::from_str(&content));
+                            current_category = Category::from_str(&content);
+                            content.clear();
                         },
                         _ => ()
                     }
-
-                    depth -= 1;
-                    println!("{:spaces$}-{name}", "", spaces = depth * 2);
                 }
 
                 Ok(XmlEvent::Characters(s)) => {
@@ -121,7 +97,7 @@ impl EventProvider for XMLFileProvider {
 
     fn is_add_supported(&self) -> bool { false }
 
-    fn add_event(&self, event: &Event) -> Result<(), EventProviderError> {
+    fn add_event(&self, _event: &Event) -> Result<(), EventProviderError> {
         Err(EventProviderError::OperationNotSupported)
     }
 }
