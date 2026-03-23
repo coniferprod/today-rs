@@ -4,7 +4,7 @@ use log;
 
 use crate::events::Event;
 use crate::filters::EventFilter;
-use crate::ProviderConfig;
+use crate::{ProviderConfig, Config};
 use crate::providers::{
     EventProvider,
     textfile::TextFileProvider,
@@ -91,5 +91,29 @@ impl EventManager {
         }
 
         result
+    }
+
+    pub fn add_event(&self, provider_name: &str, event: &Event) {
+        // Find provider by name
+        let mut provider: Option<&dyn EventProvider> = None;
+        for p in &self.providers {
+            if p.name() == provider_name {
+                provider = Some(p.as_ref());
+                break;
+            }
+        }
+
+        match provider {
+            Some(p) => {
+                if p.is_add_supported() {
+                    let _ = p.add_event(event);
+                } else {
+                    println!("Adding events is not supported for provider '{}'", p.name());
+                }
+            },
+            None => {
+                eprintln!("Unknown event provider '{}'", provider_name);
+            }
+        }
     }
 }

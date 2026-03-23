@@ -69,11 +69,6 @@ pub fn create_providers(config: &Config, config_path: &Path) -> Vec::<Box<dyn Ev
         }
     }
 
-    /*
-    let test_provider = SimpleProvider::new("test");
-    providers.push(Box::new(test_provider));
-    */
-
     providers
 }
 
@@ -81,25 +76,7 @@ pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
         -> Result<(), Box<dyn Error>> {
     //birthday::handle_birthday();
 
-    // This block creates the providers and gets events:
-    /*
-    let mut events: Vec<Event> = Vec::new();
-
-    let providers = create_providers(config, config_path);
-
-    let mut count = 0;
-    for provider in providers {
-        provider.get_events(&filter, &mut events);  // polymorphism!
-        let new_count = events.len();
-        log::info!(
-            "Got {} events from provider '{}'", 
-            new_count - count,
-            provider.name());
-        count = new_count;
-    }
-    */
-
-    // This block makes an event manager and adds the providers,
+    // Makes an event manager and adds the providers,
     // then delegates getting events to the manager:
     let mut manager = EventManager::new(config_path);
     for provider_config in &config.providers {
@@ -121,11 +98,9 @@ pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
     let mut annual_events: Vec<&Event> = Vec::new();
     for event in &events {
         // Filter out "test/fake" events
-        /*
         if event.category() == test_fake_category {
             continue;
         }
-        */
         
         match event.kind() {
             EventKind::Singular(_) => singular_events.push(event),
@@ -149,19 +124,6 @@ pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
             println!("{} ({})", event.description(), event.category());
         }
     }
-
-    // Now we only have events that have already been filtered for today,
-    // but we exclude "test/fake":
-    /*
-    println!("\nEvents for today (no test/fake category):");
-    let test_fake_category = Category::new("test", "fake");
-    for event in &events {
-        if event.category() == test_fake_category {
-            continue;
-        }
-        println!("{}", event);
-    }
-     */
 
     Ok(())
 }
