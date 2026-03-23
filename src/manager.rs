@@ -10,7 +10,8 @@ use crate::providers::{
     textfile::TextFileProvider,
     csvfile::CSVFileProvider,
     sqlite::SQLiteProvider,
-    web::WebProvider
+    web::WebProvider,
+    xmlfile::XMLFileProvider,
 };
 
 pub struct EventManager {
@@ -47,6 +48,11 @@ impl EventManager {
             },
             "web" => {
                 let provider = WebProvider::new(&config.name, &config.resource);
+                self.providers.push(Box::new(provider));
+                true
+            },
+            "xml" => {
+                let provider = XMLFileProvider::new(&config.name, &path);
                 self.providers.push(Box::new(provider));
                 true
             },

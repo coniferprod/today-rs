@@ -17,3 +17,4 @@ strum_macros = "0.27"
 clap = { version = "4.5.57", features = ["derive"] }
 log = "0.4"
 env_logger = "0.11.9"
+xml = "1.2.1"

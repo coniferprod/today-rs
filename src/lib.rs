@@ -19,6 +19,7 @@ use crate::providers::{
     csvfile::CSVFileProvider,
     sqlite::SQLiteProvider,
     web::WebProvider,
+    xmlfile::XMLFileProvider,
 };
 use crate::filters::EventFilter;
 use crate::manager::EventManager;
@@ -56,6 +57,10 @@ pub fn create_providers(config: &Config, config_path: &Path) -> Vec::<Box<dyn Ev
             },
             "web" => {
                 let provider = WebProvider::new(&cfg.name, &cfg.resource);
+                providers.push(Box::new(provider));
+            },
+            "xml" => {
+                let provider = XMLFileProvider::new(&cfg.name, &path);
                 providers.push(Box::new(provider));
             },
             _ => {
