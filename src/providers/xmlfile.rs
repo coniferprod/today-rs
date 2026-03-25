@@ -35,14 +35,16 @@ impl EventProvider for XMLFileProvider {
         let mut current_date: NaiveDate = Local::now().date_naive();
         let mut current_description: String = String::new();
         let mut current_category: Category = Category::from_primary("test");
+        let mut category_string = String::new();
 
         let mut content = String::new();
         for e in parser {
-    
             match e {
                 Ok(XmlEvent::StartElement { name, .. }) => {
+                    content.clear();
                     match name.local_name.as_str() {
                         "description" => current_description.clear(),
+                        "category" => category_string.clear(),
                         _ => {}
                     }
                 }
@@ -63,7 +65,7 @@ impl EventProvider for XMLFileProvider {
                             }
                         },
                         "date" => {
-                            log::debug!("date: content={}", &content);
+                            log::debug!("end element 'date': content={}", &content);
                             current_date = NaiveDate::parse_from_str(&content, "%F")
                                 .expect("invalid date");
                             content.clear();
@@ -73,8 +75,17 @@ impl EventProvider for XMLFileProvider {
                             content.clear();
                         },
                         "category" => {
-                            current_category = Category::from_str(&content);
-                            content.clear();
+                            log::debug!("end category, category_string = '{}'", &category_string);
+                            current_category = Category::from_str(&category_string);
+                        },
+                        "primary" => {
+                            log::debug!("end element 'primary' content = '{}'", &content);
+                            category_string.push_str(&content);
+                        },
+                        "secondary" => {
+                            log::debug!("end element 'secondary' content = '{}'", &content);
+                            category_string.push('/');
+                            category_string.push_str(&content);
                         },
                         _ => ()
                     }
