@@ -16,7 +16,7 @@ enum Command {
     /// Adds an event to an event provider
     Add {
         #[arg(short, long, help = "Name of event provider")]
-        provider_name: String,
+        provider: String,
 
         #[arg(short, long, help = "Date of event. Format: YYYY-MM-DD")]
         date: String,
@@ -112,13 +112,13 @@ fn main() {
                     }
                 },
 
-                Some(Command::Add { provider_name, date, description, category }) => {
+                Some(Command::Add { provider, date, description, category }) => {
                     log::debug!("provider_name = '{}'  date = '{}'  description = '{}'  category = '{}'",
-                        provider_name, date, description, category);
+                        provider, date, description, category);
                     let category = Category::from_str(&category);
                     let date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d").unwrap();
                     let event = Event::new_singular(date, description, category);
-                    add_event(&config, &path, &provider_name, &event);
+                    add_event(&config, &path, &provider, &event);
                 },
 
                 _ => {
