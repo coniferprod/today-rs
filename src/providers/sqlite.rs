@@ -1,14 +1,30 @@
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 
-use sqlite::{Connection, State};
+use rusqlite::{Connection, params};
 use chrono::NaiveDate;
 use log;
 
 use crate::events::{Event, Category};
-use crate::providers::EventProvider;
-use crate::providers::EventProviderError;
+use crate::providers::{EventProvider, EventProviderError};
 use crate::filters::{EventFilter};
+
+type CategoryId = i64;
+type CategoryMap = HashMap<CategoryId, Category>;
+
+#[derive(Debug)]
+pub struct CategoryRow {
+    category_id: CategoryId,
+    primary_name: String,
+    secondary_name: Option<String>,
+}
+
+#[derive(Debug)]
+struct EventRow {
+    event_date: String,
+    event_description: String,
+    category_id: CategoryId,
+}
 
 pub struct SQLiteProvider {
     name: String,
@@ -22,42 +38,6 @@ impl SQLiteProvider {
             path: path.to_path_buf() 
         }
     }
-
-
-    fn get_categories(&self, connection: &Connection) -> HashMap<i64, Category> {
-        let mut category_map: HashMap<i64, Category> = HashMap::new();
-
-        let category_query = "SELECT category_id, primary_name, secondary_name FROM category";
-        let mut statement = connection.prepare(category_query).unwrap();
-        while let Ok(State::Row) = statement.next() {
-            let category_id = statement.read::<i64, _>("category_id").unwrap();
-            let primary = statement.read::<String, _>("primary_name").unwrap();
-            let secondary = statement.read::<Option<String>, _>("secondary_name").unwrap();
-
-            let category = match secondary {
-                Some(sec) => Category::new(&primary, &sec),
-                None => Category::from_primary(&primary),
-            };
-            category_map.insert(category_id, category);
-        }
-
-        category_map
-    }
-
-    fn find_category_id(&self, category: &Category, connection: &Connection) -> Option<i64> {
-        // Get the categories currently in the database.
-        let category_map = self.get_categories(connection);
-
-        // Use a brute force method where you iterate the hash map keys,
-        // and stop if one of the values matches the category.
-        for (id, cat) in &category_map {
-            if *cat == *category { // found it!
-                return Some(*id);
-            }
-        }
-
-        None
-    }
 }
 
 impl EventProvider for SQLiteProvider {
@@ -67,73 +47,35 @@ impl EventProvider for SQLiteProvider {
 
     fn get_events(&self, filter: &EventFilter, events: &mut Vec<Event>) {
         let connection = Connection::open(self.path.clone()).unwrap();
-        let category_map = self.get_categories(&connection);
-
-        let where_clause = make_where_clause(filter, &category_map);
-        let mut event_query: String = "SELECT event_date, event_description, category_id FROM event".to_string();
-        event_query.push(' ');
-        event_query.push_str(&where_clause);
-
-        log::info!("SQLite database query: \"{}\"", event_query);
-
-        let mut statement = connection.prepare(event_query).unwrap();
-        while let Ok(State::Row) = statement.next() {
-            let date_string = statement.read::<String, _>("event_date").unwrap();
-            let date = NaiveDate::parse_from_str(&date_string, "%F").unwrap();
-            let description = statement.read::<String, _>("event_description").unwrap();
-            let category_id = statement.read::<i64, _>("category_id").unwrap();
-            let category = category_map.get(&category_id).unwrap();
-            events.push(Event::new_singular(date, description.to_string(), category.clone()));
-        }
+        let mut db_events = get_events(&connection, filter);
+        events.append(&mut db_events);
     }
 
     fn add_event(&self, event: &Event) -> Result<(), EventProviderError> {
         let connection = Connection::open(self.path.clone()).unwrap();
 
         // Find out if the category of the event is already there.
-        match self.find_category_id(&event.category(), &connection) {
+        match find_category_id(&event.category(), &connection) {
             Some(category_id) => {
                 // Found it, now insert the event to the database with this category ID:
-                let event_date_str = format!("{:04}-{}", event.year(), event.month_day());
-                let insert_query = format!("INSERT INTO event (event_date, event_description, category_id) VALUES ('{}', '{}', {})", 
-                    event_date_str, event.description(), category_id);
-                let connection = Connection::open(self.path.clone()).unwrap();
-                log::info!("Found existing category, about to run query: '{}'", insert_query);
-                connection.execute(insert_query).unwrap();
+                insert_event(&connection, event, category_id);
             },
             None => {
                 // Add a new category first, then add the event
                 let category = event.category();
                 let primary_str = category.primary();
-                let secondary_str = match category.secondary() {
-                    Some(secondary) => format!("'{}'", secondary),
-                    None => "NULL".to_string()
+                match category.secondary() {
+                    Some(secondary) => connection.execute(
+                        "INSERT INTO category (primary_name, secondary_name) VALUES (?1, ?2)",
+                        params![primary_str, secondary]).unwrap(),
+                    None => connection.execute(
+                        "INSERT INTO category (primary_name) VALUES (?1)",
+                        [primary_str]).unwrap()
                 };
-                let insert_category_query = format!("INSERT INTO category (primary_name, secondary_name) VALUES ('{}', {})",
-                    primary_str, secondary_str);
-                let connection = Connection::open(self.path.clone()).unwrap();
-                log::info!("Existing category not found, about to run query '{}'", insert_category_query);
-                connection.execute(insert_category_query).unwrap();
 
-                // Looks like the sqlite crate does not have a way of getting the ID
-                // of the last inserted row, so we need to fetch the categories again
-                // and look for the newly inserted row...
-                match self.find_category_id(&category, &connection) {
-                    Some(category_id) => {
-                        // We have a category ID, let's insert the event:
-                        let event_date_str = format!("{:04}-{}", event.year(), event.month_day());
-                        let insert_event_query = format!("INSERT INTO event (event_date, event_description, category_id) VALUES ('{}', '{}', '{}')", 
-                            event_date_str, event.description(), category_id);
-                        log::info!("Existing category found, about to run query '{}'", insert_event_query);
-                        connection.execute(insert_event_query).unwrap();
-                    },
-                    None => {
-                        eprintln!("Unable to find inserted category!");
-                        return Err(EventProviderError::OperationFailed);
-                    }
-                }
+                let category_id = connection.last_insert_rowid();
+                insert_event(&connection, event, category_id);
 
-                // The database connection should be automatically dropped right about here...
                 return Ok(());
             }
         }
@@ -145,6 +87,83 @@ impl EventProvider for SQLiteProvider {
     fn is_add_supported(&self) -> bool { true }
 }
 
+fn insert_event(connection: &Connection, event: &Event, category_id: CategoryId) {
+    let event_date_str = format!("{:04}-{}", event.year(), event.month_day());
+    connection.execute(
+        "INSERT INTO event (event_date, event_description, category_id) VALUES (?1, ?2, ?3)",
+        params![event_date_str, event.description(), category_id]).unwrap();
+}
+
+fn get_categories(connection: &Connection) -> CategoryMap {
+    let mut category_map: CategoryMap = HashMap::new();
+
+    let category_query = "SELECT category_id, primary_name, secondary_name FROM category";
+    let mut statement = connection.prepare(category_query).unwrap();
+    let category_iter = statement.query_map([], |row| {
+        Ok(CategoryRow {
+            category_id: row.get_unwrap(0),
+            primary_name: row.get_unwrap(1),
+            secondary_name: row.get_unwrap(2),
+        })
+    }).unwrap();
+    
+    for row in category_iter {
+        let r = row.unwrap();
+        let category = match r.secondary_name {
+            Some(secondary) => Category::new(&r.primary_name, &secondary),
+            None => Category::from_primary(&r.primary_name),
+        };
+        category_map.insert(r.category_id, category);
+    }
+    category_map
+}
+
+fn find_category_id(category: &Category, connection: &Connection) -> Option<CategoryId> {
+    // Get the categories currently in the database.
+    let category_map = get_categories(connection);
+
+    // Use a brute force method where you iterate the hash map keys,
+    // and stop if one of the values matches the category.
+    for (id, cat) in &category_map {
+        if *cat == *category { // found it!
+            return Some(*id);
+        }
+    }
+
+    None
+}
+
+fn get_events(connection: &Connection, filter: &EventFilter) -> Vec<Event> {
+    let mut events: Vec<Event> = Vec::new();
+
+    let category_map = get_categories(&connection);
+
+    let where_clause = make_where_clause(filter, &category_map);
+    let mut event_query: String = "SELECT event_date, event_description, category_id FROM event".to_string();
+    event_query.push(' ');
+    event_query.push_str(&where_clause);
+
+    log::info!("SQLite database query: \"{}\"", event_query);
+
+    let mut statement = connection.prepare(&event_query).unwrap();
+    let event_iter = statement.query_map([], |row| {
+        Ok(EventRow {
+            event_date: row.get_unwrap(0),
+            event_description: row.get_unwrap(1),
+            category_id: row.get_unwrap(2),
+        })
+    }).unwrap();
+
+    for row in event_iter {
+        let r = row.unwrap();
+        let date = NaiveDate::parse_from_str(&r.event_date, "%F").unwrap();
+        let category = category_map.get(&r.category_id).unwrap();
+        events.push(Event::new_singular(date, r.event_description, category.clone()));
+    }
+
+    events
+}
+
 fn make_date_part(filter: &EventFilter) -> String {
     if let Some(month_day) = filter.month_day() {
         let md = format!("{:02}-{:02}", month_day.month(), month_day.day());
@@ -154,9 +173,9 @@ fn make_date_part(filter: &EventFilter) -> String {
     }
 }
 
-fn make_category_part(filter: &EventFilter, category_map: &HashMap<i64, Category>) -> String {
+fn make_category_part(filter: &EventFilter, category_map: &CategoryMap) -> String {
     if let Some(filter_category) = filter.category() {
-        let mut filter_category_id: Option<i64> = None;
+        let mut filter_category_id: Option<CategoryId> = None;
 
         // Brute force search for maching category:
         //eprintln!("Looking for categories in map...");
@@ -186,7 +205,7 @@ fn make_text_part(filter: &EventFilter) -> String {
     }
 }
 
-fn make_where_clause(filter: &EventFilter, category_map: &HashMap<i64, Category>) -> String {
+fn make_where_clause(filter: &EventFilter, category_map: &CategoryMap) -> String {
     let mut parts: Vec<String> = Vec::new();
 
     if filter.contains_month_day() {
@@ -213,111 +232,104 @@ fn make_where_clause(filter: &EventFilter, category_map: &HashMap<i64, Category>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::providers::sqlite;
     use std::collections::HashMap;
     use crate::{events::Category, filters::FilterBuilder};
     use crate::events::MonthDay;
     use chrono::{NaiveDate, Datelike};
+    use rusqlite::{Connection};
 
     // Creates an in-memory SQLite database with some tables,
     // then inserts one category (id=1, primary=test, secondary=NULL)
     // and one event.
-    fn create_memory_db() -> sqlite::Connection {
-        let connection = sqlite::open(":memory:").unwrap();
+    fn create_memory_db() -> rusqlite::Connection {
+        let connection = Connection::open_in_memory().unwrap();
 
-        let query = "
-CREATE TABLE IF NOT EXISTS event(
-    event_id INTEGER PRIMARY KEY,
-    event_date DATE NOT NULL,
-    event_description TEXT NOT NULL,
-    category_id INTEGER NOT NULL,
-    FOREIGN KEY (category_id) REFERENCES category(category_id));
-CREATE TABLE IF NOT EXISTS category(
-    category_id INTEGER PRIMARY KEY,
-    primary_name TEXT NOT NULL,
-    secondary_name TEXT);
-INSERT INTO category VALUES (1, 'test', NULL);
-INSERT INTO event (event_date, event_description, category_id)
-    VALUES ('2026-03-07', 'Unit test for SQLiteProvider', 1);
-";
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS category(
+                category_id INTEGER PRIMARY KEY,
+                primary_name TEXT NOT NULL,
+                secondary_name TEXT DEFAULT NULL
+            )",
+            (),
+        ).unwrap();
 
-        connection.execute(query).unwrap();
+        connection.execute(
+            "INSERT INTO category VALUES (1, 'test', NULL)",
+            (),
+        ).unwrap();
+
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS event(
+                event_id INTEGER PRIMARY KEY,
+                event_date DATE NOT NULL,
+                event_description TEXT NOT NULL,
+                category_id INTEGER NOT NULL,
+                FOREIGN KEY (category_id) REFERENCES category(category_id))",
+            (),
+        ).unwrap();
+
+        connection.execute(
+            "INSERT INTO event (event_date, event_description, category_id)
+                VALUES ('2026-03-07', 'Unit test for SQLiteProvider', 1)",
+            (),
+        ).unwrap();
+
         connection
     }
 
     #[test]
-    fn get_categories() -> Result<(), String> {
+    fn get_categories_returns_one() {
         let connection = create_memory_db();
-        let category_query = "SELECT category_id, primary_name, secondary_name FROM category";
-        let mut statement = connection.prepare(category_query).unwrap();
-
-        if let Ok(sqlite::State::Row) = statement.next() {
-            let actual = (
-                statement.read::<i64, _>("category_id").unwrap(),
-                statement.read::<String, _>("primary_name").unwrap(),
-                statement.read::<Option<String>, _>("secondary_name").unwrap());
-            let expected = (1, "test".to_string(), None);
-            assert_eq!(expected, actual);
-            Ok(())
-        } else {
-            Err("Unable to get category from database".to_string())
-        }
+        let category_map = get_categories(&connection);
+        assert_eq!(category_map.len(), 1);
     }
 
     #[test]
-    fn get_events() -> Result<(), String> {
+    fn get_events_returns_one() {
         let connection = create_memory_db();
-        let event_query = "SELECT event_date, event_description, category_id FROM event".to_string();
-        let mut statement = connection.prepare(event_query).unwrap();
-        if let Ok(sqlite::State::Row) = statement.next() {
-            let expected = ("2026-03-07".to_string(), "Unit test for SQLiteProvider".to_string(), 1);
-            let actual = (
-                statement.read::<String, _>("event_date").unwrap(),
-                statement.read::<String, _>("event_description").unwrap(),
-                statement.read::<i64, _>("category_id").unwrap());
-            assert_eq!(expected, actual);
-            Ok(())
-        } else {
-            Err("Unable to retrieve event from database".to_string())
-        }
+        let filter = FilterBuilder::new().build();
+        let db_events = get_events(&connection, &filter);
+        assert_eq!(db_events.len(), 1);
     }
 
     #[test]
-    fn make_date_part() {
+    fn make_date_part_works() {
         let today = NaiveDate::from_ymd_opt(2026, 3, 7).unwrap();
         let filter = FilterBuilder::new()
             .month_day(MonthDay::new(today.month(), today.day()))
             .build();        
-        let date_part = crate::providers::sqlite::make_date_part(&filter);
+        let date_part = make_date_part(&filter);
         assert_eq!(date_part, "strftime('%m-%d', event_date) = '03-07'")
     }
 
     #[test]
     fn make_category_part_nonempty() {
-        let mut category_map: HashMap<i64, Category> = HashMap::new();
+        let mut category_map: CategoryMap = HashMap::new();
         category_map.insert(1, Category::from_primary("test"));
         let today = NaiveDate::from_ymd_opt(2026, 3, 7).unwrap();
         let filter = FilterBuilder::new()
             .month_day(MonthDay::new(today.month(), today.day()))
             .category(Category::from_primary("test"))
             .build();
-        let category_part = crate::providers::sqlite::make_category_part(&filter, &category_map);
+        let category_part = make_category_part(&filter, &category_map);
         assert_eq!(category_part, "category_id = 1");
     }
 
     #[test]
     fn make_category_part_empty() {
-        let category_map: HashMap<i64, Category> = HashMap::new();
+        let category_map: CategoryMap = HashMap::new();
         let today = NaiveDate::from_ymd_opt(2026, 3, 7).unwrap();
         let filter = FilterBuilder::new()
             .month_day(MonthDay::new(today.month(), today.day()))
             .build();
-        let category_part = crate::providers::sqlite::make_category_part(&filter, &category_map);
+        let category_part = make_category_part(&filter, &category_map);
         assert_eq!(category_part, "");
     }
 
     #[test]
     fn make_where_clause_empty() {
-        let mut category_map: HashMap<i64, Category> = HashMap::new();
+        let mut category_map: CategoryMap = HashMap::new();
         category_map.insert(1, Category::from_primary("test"));
         let filter = FilterBuilder::new().build();
         let where_clause = make_where_clause(&filter, &category_map);
@@ -326,7 +338,7 @@ INSERT INTO event (event_date, event_description, category_id)
 
     #[test]
     fn make_where_clause_month_day() {
-        let mut category_map: HashMap<i64, Category> = HashMap::new();
+        let mut category_map: CategoryMap = HashMap::new();
         category_map.insert(1, Category::from_primary("test"));
         let today = NaiveDate::from_ymd_opt(2026, 3, 7).unwrap();
         let filter = FilterBuilder::new()
