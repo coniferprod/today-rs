@@ -233,7 +233,6 @@ fn make_where_clause(filter: &EventFilter, category_map: &CategoryMap) -> String
 mod tests {
     use super::*;
     use crate::providers::sqlite;
-    use std::collections::HashMap;
     use crate::{events::Category, filters::FilterBuilder};
     use crate::events::MonthDay;
     use chrono::{NaiveDate, Datelike};
@@ -305,7 +304,7 @@ mod tests {
 
     #[test]
     fn make_category_part_nonempty() {
-        let mut category_map: CategoryMap = HashMap::new();
+        let mut category_map = CategoryMap::new();
         category_map.insert(1, Category::from_primary("test"));
         let today = NaiveDate::from_ymd_opt(2026, 3, 7).unwrap();
         let filter = FilterBuilder::new()
@@ -318,7 +317,7 @@ mod tests {
 
     #[test]
     fn make_category_part_empty() {
-        let category_map: CategoryMap = HashMap::new();
+        let category_map = CategoryMap::new();
         let today = NaiveDate::from_ymd_opt(2026, 3, 7).unwrap();
         let filter = FilterBuilder::new()
             .month_day(MonthDay::new(today.month(), today.day()))
@@ -329,7 +328,7 @@ mod tests {
 
     #[test]
     fn make_where_clause_empty() {
-        let mut category_map: CategoryMap = HashMap::new();
+        let mut category_map = CategoryMap::new();
         category_map.insert(1, Category::from_primary("test"));
         let filter = FilterBuilder::new().build();
         let where_clause = make_where_clause(&filter, &category_map);
@@ -338,7 +337,7 @@ mod tests {
 
     #[test]
     fn make_where_clause_month_day() {
-        let mut category_map: CategoryMap = HashMap::new();
+        let mut category_map = CategoryMap::new();
         category_map.insert(1, Category::from_primary("test"));
         let today = NaiveDate::from_ymd_opt(2026, 3, 7).unwrap();
         let filter = FilterBuilder::new()
