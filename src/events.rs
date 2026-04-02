@@ -16,7 +16,8 @@ citing the reason as: "The order of the days of week
 depends on the context."
  */
 
-#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, EnumString)]
+#[strum(ascii_case_insensitive)]
 pub enum Weekday {
     Monday = 0,
     Tuesday = 1,
@@ -37,18 +38,6 @@ impl Weekday {
             Weekday::Friday => ChronoWeekday::Fri,
             Weekday::Saturday => ChronoWeekday::Sat,
             Weekday::Sunday => ChronoWeekday::Sun,
-        }
-    }
-
-    pub fn from_chrono_weekday(wd: ChronoWeekday) -> Self {
-        match wd {
-            ChronoWeekday::Mon => Weekday::Monday,
-            ChronoWeekday::Tue => Weekday::Tuesday,
-            ChronoWeekday::Wed => Weekday::Wednesday,
-            ChronoWeekday::Thu => Weekday::Thursday,
-            ChronoWeekday::Fri => Weekday::Friday,
-            ChronoWeekday::Sat => Weekday::Saturday,
-            ChronoWeekday::Sun => Weekday::Sunday,
         }
     }
 }
@@ -203,7 +192,7 @@ impl Rule {
             }
         };
 
-        let weekday = match parts[1].parse::<ChronoWeekday>() {
+        let weekday = match Weekday::from_str(&parts[1]) {
             Ok(wd) => wd,
             Err(e) => {
                 eprintln!("{}", e);
@@ -224,7 +213,7 @@ impl Rule {
             }
         };
 
-        Some(Self { ordinal, weekday: Weekday::from_chrono_weekday(weekday), month })
+        Some(Self { ordinal, weekday, month })
     }
 
     pub fn month_day(&self) -> Option<MonthDay> {
@@ -325,20 +314,20 @@ impl Event {
     }
 
     pub fn year(&self) -> i32 {
-        let today: NaiveDate = Local::now().date_naive();
         match &self.kind {
             EventKind::Singular(date) => date.year(),
-            EventKind::Annual(_month_day) => today.year(),
+            EventKind::Annual(_month_day) => {
+                let today: NaiveDate = Local::now().date_naive();
+                today.year()
+            },
             EventKind::RuleBased(rule) => rule.year(),
         }
     }
 
     pub fn month_day(&self) -> MonthDay {
         match &self.kind {
-            EventKind::Singular(date) => 
-                MonthDay { month: date.month(), day: date.day() },
-            EventKind::Annual(month_day) => 
-                MonthDay { month: month_day.month, day: month_day.day },
+            EventKind::Singular(date) => MonthDay::new(date.month(), date.day()),
+            EventKind::Annual(month_day) => month_day.clone(),
             EventKind::RuleBased(rule) => {
                 match rule.month_day() {
                     Some(month_day) => month_day,
