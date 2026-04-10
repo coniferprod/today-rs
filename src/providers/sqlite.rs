@@ -85,6 +85,8 @@ impl EventProvider for SQLiteProvider {
 
     // Override the default implementation from the trait:
     fn is_add_supported(&self) -> bool { true }
+
+    fn kind(&self) -> String { String::from("SQLite") }
 }
 
 fn insert_event(connection: &Connection, event: &Event, category_id: CategoryId) {

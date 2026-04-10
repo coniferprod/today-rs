@@ -19,6 +19,7 @@ pub trait EventProvider {
     fn get_events(&self, filter: &EventFilter, events: &mut Vec<Event>);
     fn is_add_supported(&self) -> bool { false }
     fn add_event(&self, event: &Event) -> Result<(), EventProviderError>;
+    fn kind(&self) -> String;
 }
 
 pub enum EventProviderError {
@@ -55,4 +56,6 @@ impl EventProvider for SimpleProvider {
     fn add_event(&self, event: &Event) -> Result<(), EventProviderError> {
         Err(EventProviderError::OperationNotSupported)
     }
+
+    fn kind(&self) -> String { String::from("simple") }
 }

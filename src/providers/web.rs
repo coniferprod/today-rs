@@ -77,5 +77,7 @@ impl EventProvider for WebProvider {
 
     fn add_event(&self, event: &Event) -> Result<(), EventProviderError> {
         Err(EventProviderError::OperationNotSupported)
-    }    
+    }
+
+    fn kind(&self) -> String { String::from("web") }
 }

@@ -128,4 +128,6 @@ impl EventProvider for TextFileProvider {
             _ => Err(EventProviderError::OperationNotSupported)
         };
     }
+
+    fn kind(&self) -> String { String::from("text") }
 }

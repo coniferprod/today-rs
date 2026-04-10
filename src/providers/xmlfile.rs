@@ -111,4 +111,6 @@ impl EventProvider for XMLFileProvider {
     fn add_event(&self, _event: &Event) -> Result<(), EventProviderError> {
         Err(EventProviderError::OperationNotSupported)
     }
+
+    fn kind(&self) -> String { String::from("XML") }
 }

@@ -1,10 +1,12 @@
+use std::fs::OpenOptions;
+use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use chrono::{NaiveDate, Local, Datelike};
 use csv::ReaderBuilder;
 
 use crate::EventProvider;
 use crate::providers::EventProviderError;
-use crate::events::{Event, Category, MonthDay, Rule};
+use crate::events::{Event, EventKind, Category, MonthDay, Rule};
 use crate::filters::EventFilter;
 
 pub struct CSVFileProvider {
@@ -82,9 +84,40 @@ impl EventProvider for CSVFileProvider {
         }
     }
 
-    fn is_add_supported(&self) -> bool { false }
-    
+    fn is_add_supported(&self) -> bool { true }
+
     fn add_event(&self, event: &Event) -> Result<(), EventProviderError> {
-        unimplemented!("add not implemented for CSV");
+        if !self.is_add_supported() {
+            return Err(super::EventProviderError::OperationNotSupported);
+        }
+
+        let file = OpenOptions::new()
+            .append(true)
+            .open(self.path.clone())
+            .expect("path to text file for writing");
+
+        let writer = BufWriter::new(file);
+        let mut csv_writer = csv::Writer::from_writer(writer);
+
+        let date_string = match event.kind() {
+            EventKind::Singular(date) => {
+                date.format("%Y-%m-%d").to_string()
+            },
+            _ => {
+                return Err(EventProviderError::OperationNotSupported);
+            }
+        };
+
+        csv_writer.write_record([
+            date_string, 
+            event.description(), 
+            format!("{}", event.category())
+        ]).unwrap();
+        
+        csv_writer.flush().unwrap();
+
+        Ok(())
     }
+
+    fn kind(&self) -> String { String::from("CSV") }
 }
