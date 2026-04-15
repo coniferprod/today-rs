@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::fs::File;
 use std::io::BufReader;
+use std::str::FromStr;
 
 use chrono::{NaiveDate, Local};
 use xml::reader::{EventReader, XmlEvent};
@@ -76,7 +77,7 @@ impl EventProvider for XMLFileProvider {
                         },
                         "category" => {
                             log::debug!("end category, category_string = '{}'", &category_string);
-                            current_category = Category::from_str(&category_string);
+                            current_category = Category::from_str(&category_string).unwrap();
                         },
                         "primary" => {
                             log::debug!("end element 'primary' content = '{}'", &content);

@@ -94,15 +94,6 @@ impl Category {
         }
     }
 
-    pub fn from_str(s: &str) -> Category {
-        let parts: Vec<&str> = s.split("/").collect();
-        if parts.len() < 2 {
-            Category { primary: parts[0].to_string(), secondary: None }
-        } else {
-            Category { primary: parts[0].to_string(), secondary: Some(parts[1].to_string()) }
-        }
-    }
-
     // Accessor functions added due to adding events in SQLiteProvider
     pub fn primary(&self) -> String {
         self.primary.clone()
@@ -118,6 +109,30 @@ impl fmt::Display for Category {
         match &self.secondary {
             Some(sec) => write!(f, "{}/{}", self.primary, sec),
             None => write!(f, "{}", self.primary),
+        }
+    }
+}
+
+impl FromStr for Category {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.trim();
+        if s.is_empty() {
+            return Err(String::from("empty category"));
+        }
+
+        let parts: Vec<&str> = s.split("/").collect();
+        if parts.len() < 2 {
+            Ok(Self { 
+                primary: parts[0].to_string(), 
+                secondary: None 
+            })
+        } else {
+            Ok(Self { 
+                primary: parts[0].to_string(), 
+                secondary: Some(parts[1].to_string()) 
+            })
         }
     }
 }
@@ -361,8 +376,44 @@ impl fmt::Display for Event {
 
 #[cfg(test)]
 mod tests {
-    use crate::events::{Rule, last_weekday_in_month, nth_weekday_in_month, Ordinal, Weekday};
+    use std::str::FromStr;
+
+    use crate::events::{
+        Category,
+        Rule, 
+        last_weekday_in_month, 
+        nth_weekday_in_month, 
+        Ordinal, 
+        Weekday
+    };
     use chrono::{NaiveDate, Month};
+
+    #[test]
+    fn category_rejects_empty_string() {
+        assert!(Category::from_str("").is_err());
+    }
+
+    #[test]
+    fn category_accepts_primary_only_string() {
+        assert_eq!(
+            Category::from_str("programming"),
+            Ok(Category { 
+                primary: "programming".to_string(), 
+                secondary: None
+            })
+        )
+    }
+
+    #[test]
+    fn category_accepts_full_string() {
+        assert_eq!(
+            Category::from_str("programming/rust"),
+            Ok(Category { 
+                primary: "programming".to_string(), 
+                secondary: Some("rust".to_string())
+            })
+        )
+    }
 
     #[test]
     fn rejects_invalid_ordinal() {

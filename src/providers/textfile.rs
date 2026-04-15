@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufRead, BufWriter, Write};
 use std::fmt;
+use std::str::FromStr;
 
 use chrono::{NaiveDate, Local, Datelike};
 
@@ -77,7 +78,7 @@ impl EventProvider for TextFileProvider {
                     let event: Event;
                     match NaiveDate::parse_from_str(&date_string, "%F") {
                         Ok(date) => {
-                            let category = Category::from_str(&category_string);
+                            let category = Category::from_str(&category_string).unwrap();
                             if is_yearless {
                                 event = Event::new_annual(
                                     MonthDay::new(date.month(), date.day()),

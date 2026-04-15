@@ -166,60 +166,36 @@ fn get_events(connection: &Connection, filter: &EventFilter) -> Vec<Event> {
     events
 }
 
-fn make_date_part(filter: &EventFilter) -> String {
+fn make_where_clause(filter: &EventFilter, category_map: &CategoryMap) -> String {
+    let mut parts: Vec<String> = Vec::new();
+
     if let Some(month_day) = filter.month_day() {
         let md = format!("{:02}-{:02}", month_day.month(), month_day.day());
-        format!("strftime('%m-%d', event_date) = '{}'", md)
-    } else {
-        "".to_string()
+        let part = format!("strftime('%m-%d', event_date) = '{}'", md);
+        parts.push(part);
     }
-}
 
-fn make_category_part(filter: &EventFilter, category_map: &CategoryMap) -> String {
-    if let Some(filter_category) = filter.category() {
+    if let Some(category) = filter.category_matches() {
         let mut filter_category_id: Option<CategoryId> = None;
 
         // Brute force search for maching category:
         //eprintln!("Looking for categories in map...");
-        for (category_id, category) in category_map {
+        for (category_id, found_category) in category_map {
             //eprintln!("{}: {}", category_id, category);
-            if *category == filter_category {
+            if *found_category == category {
                 filter_category_id = Some(*category_id);
                 //eprintln!("Found it!");
                 break;
             }
         }
 
-        match filter_category_id {
-            Some(id) => format!("category_id = {}", id),
-            None => "".to_string(),
+        if let Some(id) = filter_category_id {
+            parts.push(format!("category_id = {}", id))
         }
-    } else {
-        "".to_string()
-    }
-}
-
-fn make_text_part(filter: &EventFilter) -> String {
-    if let Some(text) = filter.text() {
-        format!("event_description LIKE '%{}%'", text)
-    } else {
-        "".to_string()
-    }
-}
-
-fn make_where_clause(filter: &EventFilter, category_map: &CategoryMap) -> String {
-    let mut parts: Vec<String> = Vec::new();
-
-    if filter.contains_month_day() {
-        parts.push(make_date_part(filter));
     }
 
-    if filter.contains_category() {
-        parts.push(make_category_part(filter, category_map));
-    }
-
-    if filter.contains_text() {
-        parts.push(make_text_part(filter));
+    if let Some(text) = filter.description_contains() {
+        parts.push(format!("event_description LIKE '%{}%'", text));
     }
 
     let mut result = "".to_string();
@@ -292,40 +268,6 @@ mod tests {
         let filter = FilterBuilder::new().build();
         let db_events = get_events(&connection, &filter);
         assert_eq!(db_events.len(), 1);
-    }
-
-    #[test]
-    fn make_date_part_works() {
-        let today = NaiveDate::from_ymd_opt(2026, 3, 7).unwrap();
-        let filter = FilterBuilder::new()
-            .month_day(MonthDay::new(today.month(), today.day()))
-            .build();        
-        let date_part = make_date_part(&filter);
-        assert_eq!(date_part, "strftime('%m-%d', event_date) = '03-07'")
-    }
-
-    #[test]
-    fn make_category_part_nonempty() {
-        let mut category_map = CategoryMap::new();
-        category_map.insert(1, Category::from_primary("test"));
-        let today = NaiveDate::from_ymd_opt(2026, 3, 7).unwrap();
-        let filter = FilterBuilder::new()
-            .month_day(MonthDay::new(today.month(), today.day()))
-            .category(Category::from_primary("test"))
-            .build();
-        let category_part = make_category_part(&filter, &category_map);
-        assert_eq!(category_part, "category_id = 1");
-    }
-
-    #[test]
-    fn make_category_part_empty() {
-        let category_map = CategoryMap::new();
-        let today = NaiveDate::from_ymd_opt(2026, 3, 7).unwrap();
-        let filter = FilterBuilder::new()
-            .month_day(MonthDay::new(today.month(), today.day()))
-            .build();
-        let category_part = make_category_part(&filter, &category_map);
-        assert_eq!(category_part, "");
     }
 
     #[test]

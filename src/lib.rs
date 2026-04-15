@@ -76,6 +76,9 @@ pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
         -> Result<(), Box<dyn Error>> {
     //birthday::handle_birthday();
 
+    // Use an event manager to add the providers 
+    // and get the events:
+/*
     // Makes an event manager and adds the providers,
     // then delegates getting events to the manager:
     let mut manager = EventManager::new(config_path);
@@ -91,15 +94,33 @@ pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
     }
 
     let events = manager.get_events(&filter);
+ */
+
+    // Manually manage the providers and events:
+
+    let mut events: Vec<Event> = Vec::new();
+    let providers = create_providers(&config, &config_path);
+    for provider in &providers {
+        provider.get_events(filter, &mut events);
+    }
 
     let test_fake_category = Category::new("test", "fake");
+    let filter_fakes = false;
 
+    events = events
+        .into_iter()
+        .filter(|e| if filter_fakes { e.category() != test_fake_category } else { true })
+        .collect();
+
+    // Separate the events manually into two vectors;
+    /*
     let mut singular_events: Vec<&Event> = Vec::new();
     let mut annual_events: Vec<&Event> = Vec::new();
     for event in &events {
-        // Filter out "test/fake" events
-        if event.category() == test_fake_category {
-            continue;
+        if filter_fakes {
+            if event.category() == test_fake_category {
+                continue;
+            }
         }
         
         match event.kind() {
@@ -108,18 +129,26 @@ pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
                 annual_events.push(event)
         }
     }
+ */
+
+    // Separate the events using the partition iterator:
+    let (mut singular_events, annual_events): (Vec<&Event>, Vec<&Event>)
+        = events.iter().partition(|event| match event.kind() {
+            EventKind::Singular(_) => true,
+            _ => false
+        });
 
     if singular_events.len() > 0 {
         singular_events.sort_by(|a, b| a.year().cmp(&b.year()));
         singular_events.reverse();
-        println!("On this day in history ({}):", singular_events.len());
+        println!("On this day in history ({} events):", singular_events.len());
         for event in singular_events {
             println!("{}", event);
         }
     }
 
     if annual_events.len() > 0 {
-        println!("\nObserved today ({}):", annual_events.len());
+        println!("\nObserved today ({} events):", annual_events.len());
         for event in annual_events {
             println!("{} ({})", event.description(), event.category());
         }

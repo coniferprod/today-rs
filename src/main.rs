@@ -1,12 +1,14 @@
 use std::fs;
 use std::path::PathBuf;
-use today::{run, add_event, Config, create_providers};
-use today::events::{Event, Category, MonthDay};
-use today::filters::FilterBuilder;
-use today::birthday::handle_birthday;
+use std::str::FromStr;
+
 use chrono::{NaiveDate, Local, Datelike};
 use clap::{Parser, Subcommand};
 use log;
+
+use today::{run, add_event, Config, create_providers};
+use today::events::{Event, Category, MonthDay};
+use today::filters::FilterBuilder;
 
 #[derive(Subcommand, Debug, Clone)]
 enum Command {
@@ -67,7 +69,7 @@ fn main() {
     if let Some(exclude) = args.exclude {
         let parts: Vec<&str> = exclude.split(',').collect();
         for part in parts.iter() {
-            let category = Category::from_str(part);
+            let category = Category::from_str(part).unwrap();
             categories.push(category);
         }
         
@@ -115,7 +117,7 @@ fn main() {
                 Some(Command::Add { provider, date, description, category }) => {
                     log::debug!("provider_name = '{}'  date = '{}'  description = '{}'  category = '{}'",
                         provider, date, description, category);
-                    let category = Category::from_str(&category);
+                    let category = Category::from_str(&category).unwrap();
                     let date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d").unwrap();
                     let event = Event::new_singular(date, description, category);
                     add_event(&config, &path, &provider, &event);

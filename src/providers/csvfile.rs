@@ -1,6 +1,8 @@
 use std::fs::OpenOptions;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
+
 use chrono::{NaiveDate, Local, Datelike};
 use csv::ReaderBuilder;
 
@@ -38,7 +40,7 @@ impl EventProvider for CSVFileProvider {
             let category_string = record[2].to_string();
 
             let event: Event;
-            let category = Category::from_str(&category_string);
+            let category = Category::from_str(&category_string).unwrap();
 
             // Check if the date string starts with a letter:
             let is_rule_based = date_string.chars().next().unwrap().is_alphabetic();
@@ -88,7 +90,7 @@ impl EventProvider for CSVFileProvider {
 
     fn add_event(&self, event: &Event) -> Result<(), EventProviderError> {
         if !self.is_add_supported() {
-            return Err(super::EventProviderError::OperationNotSupported);
+            return Err(EventProviderError::OperationNotSupported);
         }
 
         let file = OpenOptions::new()
@@ -100,9 +102,8 @@ impl EventProvider for CSVFileProvider {
         let mut csv_writer = csv::Writer::from_writer(writer);
 
         let date_string = match event.kind() {
-            EventKind::Singular(date) => {
-                date.format("%Y-%m-%d").to_string()
-            },
+            EventKind::Singular(date) =>
+                date.format("%Y-%m-%d").to_string(),
             _ => {
                 return Err(EventProviderError::OperationNotSupported);
             }

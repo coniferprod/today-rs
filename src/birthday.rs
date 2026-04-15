@@ -24,7 +24,7 @@ pub fn handle_birthday() {
             let diff = today.signed_duration_since(birthdate);
             let day_count = diff.num_days();
             result.push_str(&make_message(day_count));
-            println!("{}", result);
+            println!("{}\n", result);
         },
         Err(_) => {
             eprintln!("Error in the '{}' environment variable: \

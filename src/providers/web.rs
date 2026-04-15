@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use chrono::NaiveDate;
 use reqwest::{blocking::Client, blocking::Response};
 use serde::Deserialize;
@@ -67,7 +69,7 @@ impl EventProvider for WebProvider {
 
         for json_event in json_events {
             let date = NaiveDate::parse_from_str(&json_event.date, "%F").unwrap();            
-            let category = Category::from_str(&json_event.category);
+            let category = Category::from_str(&json_event.category).unwrap();
             let event = Event::new_singular(date, json_event.description, category);
             if filter.accepts(&event) {
                 events.push(event);
