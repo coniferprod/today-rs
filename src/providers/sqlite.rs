@@ -141,7 +141,8 @@ fn get_events(connection: &Connection, filter: &EventFilter) -> Vec<Event> {
     let category_map = get_categories(&connection);
 
     let where_clause = make_where_clause(filter, &category_map);
-    let mut event_query: String = "SELECT event_date, event_description, category_id FROM event".to_string();
+    let mut event_query
+        = "SELECT event_date, event_description, category_id FROM event".to_string();
     event_query.push(' ');
     event_query.push_str(&where_clause);
 

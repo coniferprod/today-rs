@@ -33,14 +33,8 @@ impl EventFilter {
         }
 
         if let Some(ref filter_cat) = self.category_matches {
-            if event.category().primary() != filter_cat.primary() {
+            if event.category() != *filter_cat {
                 return false;
-            }
-
-            if let Some(ref sec) = filter_cat.secondary() {
-                if event.category().secondary().as_ref() != Some(sec) {
-                    return false;
-                }
             }
         }
 

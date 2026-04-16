@@ -30,7 +30,8 @@ impl EventProvider for CSVFileProvider {
     fn get_events(&self, filter: &EventFilter, events: &mut Vec<Event>) {
         let mut reader = ReaderBuilder::new()
             .has_headers(false)
-            .from_path(self.path.clone()).expect("existing CSV file");
+            .from_path(self.path.clone())
+            .expect("existing CSV file");
 
         for result in reader.records() {
             let record = result.unwrap();

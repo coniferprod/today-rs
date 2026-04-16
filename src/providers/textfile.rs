@@ -111,6 +111,12 @@ impl EventProvider for TextFileProvider {
             return Err(EventProviderError::OperationNotSupported);
         }
 
+        // Text file provider only supports adding singular events
+        let is_singular = matches!(event.kind(), EventKind::Singular { .. });
+        if !is_singular {
+            return Err(EventProviderError::OperationNotSupported);
+        }
+
         let file = OpenOptions::new()
             .append(true)
             .open(self.path.clone())
@@ -118,16 +124,21 @@ impl EventProvider for TextFileProvider {
 
         let mut writer = BufWriter::new(file);
 
-        return match event.kind() {
-            EventKind::Singular(date) => {
-                writeln!(writer, "{}", date.to_string());
-                writeln!(writer, "{}", event.description());
-                writeln!(writer, "{}", event.category());
-                writeln!(writer, "");
-                Ok(())
-            },
-            _ => Err(EventProviderError::OperationNotSupported)
+        let date_string = format!("{:04}-{}", event.year(), event.month_day());
+        if let Err(_) = writeln!(writer, "{}", date_string) {
+            return Err(EventProviderError::OperationFailed);
         };
+        if let Err(_) = writeln!(writer, "{}", event.description()) {
+            return Err(EventProviderError::OperationFailed);
+        };
+        if let Err(_) = writeln!(writer, "{}", event.category()) {
+            return Err(EventProviderError::OperationFailed);
+        };
+        if let Err(_) = writeln!(writer, "") {
+            return Err(EventProviderError::OperationFailed);
+        }
+
+        Ok(())
     }
 
     fn kind(&self) -> String { String::from("text") }
