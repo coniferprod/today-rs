@@ -105,7 +105,7 @@ pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
     }
 
     let test_fake_category = Category::new("test", "fake");
-    let filter_fakes = false;
+    let filter_fakes = true;
 
     events = events
         .into_iter()
