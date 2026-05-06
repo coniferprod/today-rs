@@ -18,7 +18,7 @@
 
     <xs:simpleType name="dateRuleType">
         <xs:restriction base="xs:string">
-            <xs:pattern value="(first|second|third|fouth|fifth|last)\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+(in|of)\s+(January|February|March|April|May|June|July|August|September|October|November|December)"/>
+            <xs:pattern value="(first|second|third|fourth|fifth|last)\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+(in|of)\s+(January|February|March|April|May|June|July|August|September|October|November|December)"/>
         </xs:restriction>
     </xs:simpleType>    
 
