@@ -3,6 +3,7 @@ use std::str::FromStr;
 use chrono::NaiveDate;
 use reqwest::{blocking::Client, blocking::Response};
 use serde::Deserialize;
+use url::Url;
 
 use crate::events::{Event, Category};
 use crate::providers::EventProvider;
@@ -11,7 +12,7 @@ use crate::filters::EventFilter;
 
 pub struct WebProvider {
     name: String,
-    url: String,
+    url: Url,
 }
 
 #[derive(Deserialize, Debug)]
@@ -22,10 +23,10 @@ struct JSONEvent {
 }
 
 impl WebProvider {
-    pub fn new(name: &str, url: &str) -> Self {
+    pub fn new(name: &str, url: &Url) -> Self {
         Self { 
             name: name.to_string(),
-            url: url.to_string()
+            url: url.clone(),
         }
     }
 }
@@ -43,16 +44,21 @@ impl EventProvider for WebProvider {
 
         let month_day = filter.month_day().unwrap();
 
+        let mut url = self.url.clone();
+        url.set_query(Some(&format!("date={}", month_day)));
+
+        /*
         let date_parameter = format!(
             "date={:02}-{:02}", 
             month_day.month(), 
             month_day.day());
+         */
 
-        let url = format!("{}?{}", &self.url, date_parameter);
+        //let url = format!("{}?{}", &self.url, date_parameter);
         log::info!("web URL = {}", &url);
 
         let client = Client::new();
-        let request = client.get(&url).send();
+        let request = client.get(url).send();
 
         let response: Response;
         if request.is_err() {
@@ -77,7 +83,7 @@ impl EventProvider for WebProvider {
         }
     }
 
-    fn add_event(&self, event: &Event) -> Result<(), EventProviderError> {
+    fn add_event(&self, _event: &Event) -> Result<(), EventProviderError> {
         Err(EventProviderError::OperationNotSupported)
     }
 

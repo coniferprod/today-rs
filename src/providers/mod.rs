@@ -53,7 +53,7 @@ impl EventProvider for SimpleProvider {
         events.push(test_event);
     }
 
-    fn add_event(&self, event: &Event) -> Result<(), EventProviderError> {
+    fn add_event(&self, _event: &Event) -> Result<(), EventProviderError> {
         Err(EventProviderError::OperationNotSupported)
     }
 

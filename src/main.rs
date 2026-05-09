@@ -52,10 +52,6 @@ fn main() {
 
     let args = Args::parse();
 
-    if !args.no_birthday {
-        today::birthday::handle_birthday();
-    }
-
     let month_day = if let Some(md) = args.date {
         MonthDay::from_str(&md)
     } else { 
@@ -64,34 +60,9 @@ fn main() {
     };
     log::debug!("month_day = {}", month_day);
 
-    // Handle the exclude categories option
-    let mut categories: Vec<Category> = Vec::new();
-    if let Some(exclude) = args.exclude {
-        let parts: Vec<&str> = exclude.split(',').collect();
-        for part in parts.iter() {
-            let category = Category::from_str(part).unwrap();
-            categories.push(category);
-        }
-        
-        log::info!("Excluded categories:");
-        for category in &categories {
-            log::info!("- {}", category);
-        }
-        log::info!("These exclusions currently have no effect.");
-    }
-
     let filter = FilterBuilder::new()
         .month_day(month_day)
         .build();
-    //let filter = FilterBuilder::new().build();
-
-
-    /*
-    let filter = FilterBuilder::new()
-        .category(Category::new("programming", "rust"))
-        .text("released".to_string())
-        .build();
- */
 
     const APP_NAME: &str = "today";
     let config_path = get_config_path(APP_NAME);
@@ -123,7 +94,27 @@ fn main() {
                     add_event(&config, &path, &provider, &event);
                 },
 
-                _ => {
+                _ => {  // no subcommand given, normal run
+                    if !args.no_birthday {
+                        today::birthday::handle_birthday();
+                    }
+
+                    // Handle the "exclude categories" option
+                    let mut categories: Vec<Category> = Vec::new();
+                    if let Some(exclude) = args.exclude {
+                        let parts: Vec<&str> = exclude.split(',').collect();
+                        for part in parts.iter() {
+                            let category = Category::from_str(part).unwrap();
+                            categories.push(category);
+                        }
+                        
+                        log::info!("Excluded categories:");
+                        for category in &categories {
+                            log::info!("- {}", category);
+                        }
+                        log::info!("These exclusions currently have no effect.");
+                    }
+
                     if let Err(e) = run(&config, &path, &filter) {
                         eprintln!("Error running program: {}", e);
                         return;

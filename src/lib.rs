@@ -12,6 +12,8 @@ pub mod manager;
 use std::error::Error;
 use std::path::Path;
 use serde::Deserialize;
+use url::Url;
+
 use crate::events::{Event, EventKind, Category};
 use crate::providers::{
     EventProvider, 
@@ -41,6 +43,12 @@ pub fn create_providers(config: &Config, config_path: &Path) -> Vec::<Box<dyn Ev
     // Put them in a vector of trait objects.
     let mut providers: Vec::<Box<dyn EventProvider>> = Vec::new();
     for cfg in config.providers.iter() {
+        let found = providers.iter().any(|p| p.name() == cfg.name);
+        if found {
+            eprintln!("Event provider {} already exists", &cfg.name);
+            continue;
+        }
+
         let path = config_path.join(&cfg.resource);
         match cfg.kind.as_str() {
             "text" => {
@@ -56,8 +64,16 @@ pub fn create_providers(config: &Config, config_path: &Path) -> Vec::<Box<dyn Ev
                 providers.push(Box::new(provider));
             },
             "web" => {
-                let provider = WebProvider::new(&cfg.name, &cfg.resource);
-                providers.push(Box::new(provider));
+                match Url::parse(&cfg.resource) {
+                    Ok(url) => {
+                        let provider = WebProvider::new(&cfg.name, &url);
+                        providers.push(Box::new(provider));
+                    },
+                    Err(e) => {
+                        eprintln!("Error in URL for provider {}: {}",
+                            &cfg.name, e);
+                    }
+                }
             },
             "xml" => {
                 let provider = XMLFileProvider::new(&cfg.name, &path);
@@ -74,13 +90,8 @@ pub fn create_providers(config: &Config, config_path: &Path) -> Vec::<Box<dyn Ev
 
 pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
         -> Result<(), Box<dyn Error>> {
-    //birthday::handle_birthday();
-
-    // Use an event manager to add the providers 
-    // and get the events:
-/*
-    // Makes an event manager and adds the providers,
-    // then delegates getting events to the manager:
+    // Make an event manager and adds the providers,
+    // then delegate getting events to the manager:
     let mut manager = EventManager::new(config_path);
     for provider_config in &config.providers {
         if manager.add_provider(&provider_config) {
@@ -93,16 +104,7 @@ pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
         }
     }
 
-    let events = manager.get_events(&filter);
- */
-
-    // Manually manage the providers and events:
-
-    let mut events: Vec<Event> = Vec::new();
-    let providers = create_providers(&config, &config_path);
-    for provider in &providers {
-        provider.get_events(filter, &mut events);
-    }
+    let mut events = manager.get_events(&filter);
 
     let test_fake_category = Category::new("test", "fake");
     let filter_fakes = true;
@@ -112,26 +114,8 @@ pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
         .filter(|e| if filter_fakes { e.category() != test_fake_category } else { true })
         .collect();
 
-    // Separate the events manually into two vectors;
-    /*
-    let mut singular_events: Vec<&Event> = Vec::new();
-    let mut annual_events: Vec<&Event> = Vec::new();
-    for event in &events {
-        if filter_fakes {
-            if event.category() == test_fake_category {
-                continue;
-            }
-        }
-        
-        match event.kind() {
-            EventKind::Singular(_) => singular_events.push(event),
-            EventKind::Annual(_) | EventKind::RuleBased(_) =>
-                annual_events.push(event)
-        }
-    }
- */
-
-    // Separate the events using the partition iterator:
+    // Separate the events into vector using the 
+    // partition adapter of the iterator:
     let (mut singular_events, annual_events): (Vec<&Event>, Vec<&Event>)
         = events.iter().partition(|event| match event.kind() {
             EventKind::Singular(_) => true,

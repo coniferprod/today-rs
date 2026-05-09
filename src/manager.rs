@@ -1,10 +1,11 @@
 use std::path::{Path, PathBuf};
 
 use log;
+use url::Url;
 
 use crate::events::Event;
 use crate::filters::EventFilter;
-use crate::{ProviderConfig, Config};
+use crate::ProviderConfig;
 use crate::providers::{
     EventProvider,
     textfile::TextFileProvider,
@@ -47,9 +48,18 @@ impl EventManager {
                 true
             },
             "web" => {
-                let provider = WebProvider::new(&config.name, &config.resource);
-                self.providers.push(Box::new(provider));
-                true
+                match Url::parse(&config.resource) {
+                    Ok(url) => {
+                        let provider = WebProvider::new(&config.name, &url);
+                        self.providers.push(Box::new(provider));
+                        true
+                    },
+                    Err(e) => {
+                        eprintln!("Error in URL for provider '{}': {}",
+                            &config.name, e);
+                        false
+                    }
+                }
             },
             "xml" => {
                 let provider = XMLFileProvider::new(&config.name, &path);
