@@ -29,16 +29,18 @@ impl EventProvider for XMLFileProvider {
     }
 
     fn get_events(&self, filter: &EventFilter, events: &mut Vec<Event>) {
-        let file = File::open(self.path.clone()).expect("path to text file");
+        let file = File::open(self.path.clone()).expect("path to XML file");
         let file = BufReader::new(file);
         let parser = EventReader::new(file);
 
+        // Set up some reusable event parts with default values.
+        // When we encounter XML elements, we set these values to the content.
         let mut current_date: NaiveDate = Local::now().date_naive();
         let mut current_description: String = String::new();
         let mut current_category: Category = Category::from_primary("test");
         let mut category_string = String::new();
 
-        let mut content = String::new();
+        let mut content = String::new();  // also reused inside the loop
         for e in parser {
             match e {
                 Ok(XmlEvent::StartElement { name, .. }) => {

@@ -37,6 +37,8 @@ impl EventProvider for WebProvider {
     }
 
     fn get_events(&self, filter: &EventFilter, events: &mut Vec<Event>) {
+        // We need a date parameter for the URL, so if the filter
+        // does not specify it, we are done.
         if filter.month_day().is_none() {
             eprintln!("No month-day in filter");
             return;
