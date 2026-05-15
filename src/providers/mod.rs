@@ -20,42 +20,10 @@ pub trait EventProvider {
     fn is_add_supported(&self) -> bool { false }
     fn add_event(&self, event: &Event) -> Result<(), EventProviderError>;
     fn kind(&self) -> String;
+    fn is_active(&self) -> bool;
 }
 
 pub enum EventProviderError {
     OperationNotSupported,
     OperationFailed,
-}
-
-pub struct SimpleProvider {
-    name: String,
-}
-
-impl SimpleProvider {
-    pub fn new(name: &str) -> Self {
-        Self { name: name.to_string() }
-    }
-}
-
-impl EventProvider for SimpleProvider {
-    fn name(&self) -> String {
-        self.name.clone()
-    }
-
-    fn get_events(&self, _filter: &EventFilter, events: &mut Vec<Event>) {
-        let today: NaiveDate = Local::now().date_naive();
-
-        let test_event = Event::new_singular(
-            today, 
-            String::from("Test event for today"), 
-            Category::from_primary("test")
-        );
-        events.push(test_event);
-    }
-
-    fn add_event(&self, _event: &Event) -> Result<(), EventProviderError> {
-        Err(EventProviderError::OperationNotSupported)
-    }
-
-    fn kind(&self) -> String { String::from("simple") }
 }

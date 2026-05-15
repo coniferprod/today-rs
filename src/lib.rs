@@ -11,18 +11,13 @@ pub mod manager;
 
 use std::error::Error;
 use std::path::Path;
-use serde::Deserialize;
-use url::Url;
 
-use crate::events::{Event, EventKind, Category};
-use crate::providers::{
-    EventProvider, 
-    textfile::TextFileProvider,
-    csvfile::CSVFileProvider,
-    sqlite::SQLiteProvider,
-    web::WebProvider,
-    xmlfile::XMLFileProvider,
-};
+use serde::Deserialize;
+use log;
+use pluralizer::pluralize;
+
+use crate::events::Event;
+use crate::providers::EventProvider;
 use crate::filters::EventFilter;
 use crate::manager::EventManager;
 
@@ -31,6 +26,7 @@ pub struct ProviderConfig {
     pub name: String,
     kind: String,
     resource: String,
+    is_active: Option<bool>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -38,131 +34,63 @@ pub struct Config {
     pub providers: Vec::<ProviderConfig>,
 }
 
-pub fn create_providers(config: &Config, config_path: &Path) -> Vec::<Box<dyn EventProvider>> {
-    // Try to create all the event providers specified in `config`.
-    // Put them in a vector of trait objects.
-    let mut providers: Vec::<Box<dyn EventProvider>> = Vec::new();
-    for cfg in config.providers.iter() {
-        let found = providers.iter().any(|p| p.name() == cfg.name);
-        if found {
-            eprintln!("Event provider {} already exists", &cfg.name);
-            continue;
-        }
+pub fn run_providers(manager: &EventManager) {
+    log::debug!("run_providers");
 
-        let path = config_path.join(&cfg.resource);
-        match cfg.kind.as_str() {
-            "text" => {
-                let provider = TextFileProvider::new(&cfg.name, &path);
-                providers.push(Box::new(provider));
-            },
-            "csv" => {
-                let provider = CSVFileProvider::new(&cfg.name, &path);
-                providers.push(Box::new(provider));
-            },
-            "sqlite" => {
-                let provider = SQLiteProvider::new(&cfg.name, &path);
-                providers.push(Box::new(provider));
-            },
-            "web" => {
-                match Url::parse(&cfg.resource) {
-                    Ok(url) => {
-                        let provider = WebProvider::new(&cfg.name, &url);
-                        providers.push(Box::new(provider));
-                    },
-                    Err(e) => {
-                        eprintln!("Error in URL for provider {}: {}",
-                            &cfg.name, e);
-                    }
-                }
-            },
-            "xml" => {
-                let provider = XMLFileProvider::new(&cfg.name, &path);
-                providers.push(Box::new(provider));
-            },
-            _ => {
-                eprintln!("Unable to make provider: {:?}", cfg);
-            }
-        }
+    println!("! = active   + = supports add");
+    let provider_info = manager.get_provider_info();
+    for info in provider_info {
+        println!(
+            "{:20} {}{} {}", 
+            info.name,
+            if info.is_active { "!" } else { " "},
+            if info.is_add_supported { "+" } else { " " },
+            info.kind);
     }
-
-    providers
 }
 
-pub fn run(config: &Config, config_path: &Path, filter: &EventFilter)
-        -> Result<(), Box<dyn Error>> {
-    // Make an event manager and adds the providers,
-    // then delegate getting events to the manager:
-    let mut manager = EventManager::new(config_path);
-    for provider_config in &config.providers {
-        if manager.add_provider(&provider_config) {
-            log::debug!("Successfully added {} event provider '{}'",
-                provider_config.kind,
-                provider_config.name);
-        } else {
-            log::debug!("Unable to add event provider: {:#?}",
-                provider_config);
-        }
+pub fn run_add(manager: &EventManager, provider_name: &str, event: &Event) {
+    log::debug!("run_add");
+
+    if !manager.add_event(provider_name, event) {
+        eprintln!("Unable to add event to provider '{}'", provider_name);
     }
+}
 
-    let mut events = manager.get_events(&filter);
+pub fn run(manager: &EventManager, filter: &EventFilter)
+        -> Result<(), Box<dyn Error>> {
+    log::debug!("run");
 
-    let test_fake_category = Category::new("test", "fake");
-    let filter_fakes = true;
+    let events = manager.get_events(&filter);
 
-    events = events
-        .into_iter()
-        .filter(|e| if filter_fakes { e.category() != test_fake_category } else { true })
-        .collect();
-
-    // Separate the events into vector using the 
-    // partition adapter of the iterator:
     let (mut singular_events, annual_events): (Vec<&Event>, Vec<&Event>)
-        = events.iter().partition(|event| match event.kind() {
-            EventKind::Singular(_) => true,
-            _ => false
-        });
+        = events.iter().partition(|event| event.is_singular());
 
-    if singular_events.len() > 0 {
+    let include_count = true;
+    let mut print_separator = true;
+
+    if !singular_events.is_empty() {
         singular_events.sort_by(|a, b| a.year().cmp(&b.year()));
         singular_events.reverse();
-        println!("On this day in history ({} events):", singular_events.len());
+        println!("On this day in history ({}):", 
+            pluralize("event", singular_events.len() as isize, include_count));
         for event in singular_events {
             println!("{}", event);
         }
+    } else {
+        print_separator = false;
     }
 
-    if annual_events.len() > 0 {
-        println!("\nObserved today ({} events):", annual_events.len());
+    if !annual_events.is_empty() {
+        if print_separator {
+            println!();
+        }
+        println!("Observed today ({}):", 
+            pluralize("event", annual_events.len() as isize, include_count));
         for event in annual_events {
             println!("{} ({})", event.description(), event.category());
         }
     }
 
     Ok(())
-}
-
-pub fn add_event(config: &Config, config_path: &Path, provider_name: &str, event: &Event) {
-    let providers = create_providers(config, config_path);
-
-    // Find provider by name
-    let mut provider: Option<&dyn EventProvider> = None;
-    for p in &providers {
-        if p.name() == provider_name {
-            provider = Some(p.as_ref());
-            break;
-        }
-    }
-
-    match provider {
-        Some(p) => {
-            if p.is_add_supported() {
-                let _ = p.add_event(event);
-            } else {
-                println!("Adding events is not supported for provider '{}'", p.name());
-            }
-        },
-        None => {
-            eprintln!("Unknown event provider '{}'", provider_name);
-        }
-    }
 }

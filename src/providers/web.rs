@@ -1,32 +1,27 @@
 use std::str::FromStr;
 
-use chrono::NaiveDate;
-use reqwest::{blocking::Client, blocking::Response};
+use reqwest::blocking::{Client, Response};
 use serde::Deserialize;
+use chrono::{NaiveDate, Datelike, Local};
 use url::Url;
+use log;  // 0.35.0
 
-use crate::events::{Event, Category};
-use crate::providers::EventProvider;
-use crate::providers::EventProviderError;
+use crate::events::{Category, Event, EventDate};
+use crate::providers::{EventProvider, EventProviderError};
 use crate::filters::EventFilter;
 
 pub struct WebProvider {
     name: String,
     url: Url,
-}
-
-#[derive(Deserialize, Debug)]
-struct JSONEvent {
-    category: String,
-    date: String,
-    description: String,
+    is_active: bool,
 }
 
 impl WebProvider {
-    pub fn new(name: &str, url: &Url) -> Self {
+    pub fn new(name: &str, url: &Url, is_active: bool) -> Self {
         Self { 
             name: name.to_string(),
             url: url.clone(),
+            is_active
         }
     }
 }
@@ -37,10 +32,10 @@ impl EventProvider for WebProvider {
     }
 
     fn get_events(&self, filter: &EventFilter, events: &mut Vec<Event>) {
-        // We need a date parameter for the URL, so if the filter
+        // We need a date query parameter for the URL, so if the filter
         // does not specify it, we are done.
         if filter.month_day().is_none() {
-            eprintln!("No month-day in filter");
+            log::error!("No month-day in filter");
             return;
         }
 
@@ -49,45 +44,51 @@ impl EventProvider for WebProvider {
         let mut url = self.url.clone();
         url.set_query(Some(&format!("date={}", month_day)));
 
-        /*
-        let date_parameter = format!(
-            "date={:02}-{:02}", 
-            month_day.month(), 
-            month_day.day());
-         */
-
-        //let url = format!("{}?{}", &self.url, date_parameter);
-        log::info!("web URL = {}", &url);
-
         let client = Client::new();
         let request = client.get(url).send();
-
         let response: Response;
         if request.is_err() {
-            eprintln!("Error while retrieving data: {:#?}", request.err());
+            log::error!("Error while retrieving data: {:#?}", request.err());
             return;
         } else {
             response = request.ok().unwrap();
         }
 
         let json_events = response.json::<Vec<JSONEvent>>().unwrap();
-        //println!("Got {} events from JSON", json_events.len());
-        //println!("body = {:?}", response.text().unwrap());
-        //eprintln!("JSON = {:?}", json);
-
+        log::info!("Got {} events from JSON", json_events.len());
         for json_event in json_events {
-            let date = NaiveDate::parse_from_str(&json_event.date, "%F").unwrap();            
-            let category = Category::from_str(&json_event.category).unwrap();
-            let event = Event::new_singular(date, json_event.description, category);
-            if filter.accepts(&event) {
-                events.push(event);
-            }
+            let date = NaiveDate::parse_from_str(&json_event.date, "%F").unwrap();
+            let category = match Category::from_str(&json_event.category) {
+                Ok(cat) => cat,
+                Err(e) => {
+                    log::error!("{}", e);
+                    continue;
+                }
+            };
+            let event = Event::new(
+                EventDate::Singular(date), 
+                json_event.description, 
+                category);
+            events.push(event);
         }
-    }
+    } 
 
     fn add_event(&self, _event: &Event) -> Result<(), EventProviderError> {
         Err(EventProviderError::OperationNotSupported)
     }
 
-    fn kind(&self) -> String { String::from("web") }
+    fn kind(&self) -> String {
+        String::from("web")
+    }
+
+    fn is_active(&self) -> bool {
+        self.is_active
+    }
+}
+
+#[derive(Deserialize, Debug)]
+struct JSONEvent {
+    category: String,
+    date: String,
+    description: String,
 }

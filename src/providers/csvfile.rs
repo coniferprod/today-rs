@@ -8,17 +8,22 @@ use csv::ReaderBuilder;
 
 use crate::EventProvider;
 use crate::providers::EventProviderError;
-use crate::events::{Event, EventKind, Category, MonthDay, Rule};
+use crate::events::{Event, EventDate, Category, MonthDay, Rule};
 use crate::filters::EventFilter;
 
 pub struct CSVFileProvider {
     name: String,
     path: PathBuf,
+    is_active: bool,
 }
 
 impl CSVFileProvider {
-    pub fn new(name: &str, path: &Path) -> Self {
-        Self { name: name.to_string(), path: path.to_path_buf() }
+    pub fn new(name: &str, path: &Path, is_active: bool) -> Self {
+        Self { 
+            name: name.to_string(), 
+            path: path.to_path_buf(),
+            is_active
+        }
     }
 }
 
@@ -28,10 +33,11 @@ impl EventProvider for CSVFileProvider {
     }
 
     fn get_events(&self, filter: &EventFilter, events: &mut Vec<Event>) {
+        log::info!("Reading from {}", &self.path.display());
+
         let mut reader = ReaderBuilder::new()
             .has_headers(false)
-            .from_path(self.path.clone())
-            .expect("existing CSV file");
+            .from_path(self.path.clone()).expect("wanted an existing CSV file");
 
         for result in reader.records() {
             let record = result.unwrap();
@@ -40,16 +46,12 @@ impl EventProvider for CSVFileProvider {
             let description = record[1].to_string();
             let category_string = record[2].to_string();
 
-            let event: Event;
-            let category = Category::from_str(&category_string).unwrap();
-
             // Check if the date string starts with a letter:
             let is_rule_based = date_string.chars().next().unwrap().is_alphabetic();
             if is_rule_based {
-                event = Event::new_rule_based(
-                    Rule::parse(&date_string).unwrap(), 
-                    description, 
-                    category);
+                let rule = Rule::parse(&date_string).unwrap();
+                let category = Category::from_str(&category_string).unwrap();
+                let event = Event::new(EventDate::RuleBased(rule), description, category);
                 if filter.accepts(&event) {
                     events.push(event);
                 }
@@ -65,23 +67,20 @@ impl EventProvider for CSVFileProvider {
             
             match NaiveDate::parse_from_str(&date_string, "%F") {
                 Ok(date) => {
-                    if is_yearless {
-                        event = Event::new_annual(
-                            MonthDay::new(date.month(), date.day()),
-                            description.clone(), 
-                            category);
+                    let category = Category::from_str(&category_string).unwrap();
+                    let event_date = if is_yearless {
+                        let month_day = MonthDay::new(date.month(), date.day());
+                        EventDate::Annual(month_day)
                     } else {
-                        event = Event::new_singular( 
-                            date, 
-                            description.clone(), 
-                            category);
-                    }
+                        EventDate::Singular(date)
+                    };
+                    let event = Event::new(event_date, description, category);
                     if filter.accepts(&event) {
                         events.push(event);
                     }
                 },
                 Err(_) => {
-                    eprintln!("Invalid timestamp '{}'", date_string);
+                    log::error!("Invalid date '{}'", date_string);
                 }
             }
         }
@@ -102,12 +101,10 @@ impl EventProvider for CSVFileProvider {
         let writer = BufWriter::new(file);
         let mut csv_writer = csv::Writer::from_writer(writer);
 
-        let date_string = match event.kind() {
-            EventKind::Singular(date) =>
-                date.format("%Y-%m-%d").to_string(),
-            _ => {
-                return Err(EventProviderError::OperationNotSupported);
-            }
+        let date_string = if event.is_singular() {
+            format!("{}", event.date())
+        } else {
+            return Err(EventProviderError::OperationNotSupported);
         };
 
         csv_writer.write_record([
@@ -121,5 +118,11 @@ impl EventProvider for CSVFileProvider {
         Ok(())
     }
 
-    fn kind(&self) -> String { String::from("CSV") }
+    fn kind(&self) -> String {
+        String::from("CSV")
+    }
+
+    fn is_active(&self) -> bool {
+        self.is_active
+    }
 }

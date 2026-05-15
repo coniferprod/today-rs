@@ -1,41 +1,25 @@
-use std::path::{Path, PathBuf};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use rusqlite::{Connection, params};
 use chrono::NaiveDate;
-use log;
 
-use crate::events::{Event, Category};
+use crate::events::{Event, EventDate, Category};
 use crate::providers::{EventProvider, EventProviderError};
-use crate::filters::{EventFilter};
-
-type CategoryId = i64;
-type CategoryMap = HashMap<CategoryId, Category>;
-
-#[derive(Debug)]
-pub struct CategoryRow {
-    category_id: CategoryId,
-    primary_name: String,
-    secondary_name: Option<String>,
-}
-
-#[derive(Debug)]
-struct EventRow {
-    event_date: String,
-    event_description: String,
-    category_id: CategoryId,
-}
+use crate::filters::EventFilter;
 
 pub struct SQLiteProvider {
     name: String,
     path: PathBuf,
+    is_active: bool,
 }
 
 impl SQLiteProvider {
-    pub fn new(name: &str, path: &Path) -> Self {
-        Self { 
+    pub fn new(name: &str, path: &Path, is_active: bool) -> Self {
+        Self {
             name: name.to_string(),
-            path: path.to_path_buf() 
+            path: path.to_path_buf(),
+            is_active,
         }
     }
 }
@@ -47,9 +31,12 @@ impl EventProvider for SQLiteProvider {
 
     fn get_events(&self, filter: &EventFilter, events: &mut Vec<Event>) {
         let connection = Connection::open(self.path.clone()).unwrap();
-        let mut db_events = get_events(&connection, filter);
+        let mut db_events = get_events(&connection, &filter);
         events.append(&mut db_events);
     }
+
+    // Override the default implementation from the trait:
+    fn is_add_supported(&self) -> bool { true }
 
     fn add_event(&self, event: &Event) -> Result<(), EventProviderError> {
         let connection = Connection::open(self.path.clone()).unwrap();
@@ -83,10 +70,13 @@ impl EventProvider for SQLiteProvider {
         Err(EventProviderError::OperationNotSupported)
     }
 
-    // Override the default implementation from the trait:
-    fn is_add_supported(&self) -> bool { true }
+    fn kind(&self) -> String {
+        String::from("SQLite")
+    }
 
-    fn kind(&self) -> String { String::from("SQLite") }
+    fn is_active(&self) -> bool {
+        self.is_active
+    }
 }
 
 fn insert_event(connection: &Connection, event: &Event, category_id: CategoryId) {
@@ -94,6 +84,23 @@ fn insert_event(connection: &Connection, event: &Event, category_id: CategoryId)
     connection.execute(
         "INSERT INTO event (event_date, event_description, category_id) VALUES (?1, ?2, ?3)",
         params![event_date_str, event.description(), category_id]).unwrap();
+}
+
+type CategoryId = i64;
+type CategoryMap = HashMap<CategoryId, Category>;
+
+#[derive(Debug)]
+pub struct CategoryRow {
+    category_id: CategoryId,
+    primary_name: String,
+    secondary_name: Option<String>,
+}
+
+#[derive(Debug)]
+struct EventRow {
+    event_date: String,
+    event_description: String,
+    category_id: CategoryId,
 }
 
 fn get_categories(connection: &Connection) -> CategoryMap {
@@ -136,17 +143,15 @@ fn find_category_id(category: &Category, connection: &Connection) -> Option<Cate
 }
 
 fn get_events(connection: &Connection, filter: &EventFilter) -> Vec<Event> {
-    let mut events: Vec<Event> = Vec::new();
-
     let category_map = get_categories(&connection);
 
-    let where_clause = make_where_clause(filter, &category_map);
     let mut event_query
         = "SELECT event_date, event_description, category_id FROM event".to_string();
-    event_query.push(' ');
-    event_query.push_str(&where_clause);
-
-    log::info!("SQLite database query: \"{}\"", event_query);
+    let where_clause = make_where_clause(filter, &category_map);
+    if !where_clause.is_empty() {
+        event_query.push(' ');
+        event_query.push_str(&where_clause);
+    }
 
     let mut statement = connection.prepare(&event_query).unwrap();
     let event_iter = statement.query_map([], |row| {
@@ -157,11 +162,16 @@ fn get_events(connection: &Connection, filter: &EventFilter) -> Vec<Event> {
         })
     }).unwrap();
 
+    let mut events: Vec<Event> = Vec::new();
     for row in event_iter {
         let r = row.unwrap();
         let date = NaiveDate::parse_from_str(&r.event_date, "%F").unwrap();
         let category = category_map.get(&r.category_id).unwrap();
-        events.push(Event::new_singular(date, r.event_description, category.clone()));
+        let event = Event::new(
+            EventDate::Singular(date),
+            r.event_description,
+            category.clone());
+        events.push(event);
     }
 
     events
@@ -171,21 +181,16 @@ fn make_where_clause(filter: &EventFilter, category_map: &CategoryMap) -> String
     let mut parts: Vec<String> = Vec::new();
 
     if let Some(month_day) = filter.month_day() {
-        let md = format!("{:02}-{:02}", month_day.month(), month_day.day());
-        let part = format!("strftime('%m-%d', event_date) = '{}'", md);
+        let part = format!("strftime('%m-%d', event_date) = '{}'", month_day);
         parts.push(part);
     }
 
     if let Some(category) = filter.category_matches() {
         let mut filter_category_id: Option<CategoryId> = None;
 
-        // Brute force search for maching category:
-        //eprintln!("Looking for categories in map...");
         for (category_id, found_category) in category_map {
-            //eprintln!("{}: {}", category_id, category);
             if *found_category == category {
                 filter_category_id = Some(*category_id);
-                //eprintln!("Found it!");
                 break;
             }
         }
@@ -211,16 +216,15 @@ fn make_where_clause(filter: &EventFilter, category_map: &CategoryMap) -> String
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::providers::sqlite;
-    use crate::{events::Category, filters::FilterBuilder};
-    use crate::events::MonthDay;
+    use crate::events::{Category, MonthDay};
+    use crate::filters::FilterBuilder;
     use chrono::{NaiveDate, Datelike};
-    use rusqlite::{Connection};
+    use rusqlite::Connection;
 
-    // Creates an in-memory SQLite database with some tables,
-    // then inserts one category (id=1, primary=test, secondary=NULL)
+    // Creates an in-memory SQLite database with the event and category tables,
+    // then inserts one category (id=1, primary=test, secondary=NULL),
     // and one event.
-    fn create_memory_db() -> rusqlite::Connection {
+    fn create_memory_db() -> Connection {
         let connection = Connection::open_in_memory().unwrap();
 
         connection.execute(
@@ -290,5 +294,5 @@ mod tests {
             .build();
         let where_clause = make_where_clause(&filter, &category_map);
         assert_eq!(where_clause, "WHERE strftime('%m-%d', event_date) = '03-07'"); 
-    }
+    }    
 }

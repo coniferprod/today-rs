@@ -1,15 +1,30 @@
 use std::path::{Path, PathBuf};
-use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufRead, BufWriter, Write};
-use std::fmt;
 use std::str::FromStr;
+use std::fs::{File, OpenOptions};
 
 use chrono::{NaiveDate, Local, Datelike};
+use log;  // 0.35.0
 
-use crate::EventProvider;
-use crate::events::{Event, Category, MonthDay, EventKind};
+use crate::events::{Event, EventDate, Category, MonthDay};
+use crate::providers::{EventProvider, EventProviderError};
 use crate::filters::EventFilter;
-use crate::providers::EventProviderError;
+
+pub struct TextFileProvider {
+    name: String,
+    path: PathBuf,
+    is_active: bool,
+}
+
+impl TextFileProvider {
+    pub fn new(name: &str, path: &Path, is_active: bool) -> Self {
+        Self {
+            name: name.to_string(),
+            path: path.to_path_buf(),
+            is_active,
+        }
+    }
+}
 
 enum ReadingState {
     Date,
@@ -18,34 +33,14 @@ enum ReadingState {
     Separator,
 }
 
-impl fmt::Display for ReadingState {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "{}", match self {
-            ReadingState::Date => "DATE",
-            ReadingState::Description => "DESCRIPTION",
-            ReadingState::Category => "CATEGORY",
-            ReadingState::Separator => "SEPARATOR",
-        })
-    }
-}
-
-pub struct TextFileProvider {
-    name: String,
-    path: PathBuf,
-}
-
-impl TextFileProvider {
-    pub fn new(name: &str, path: &Path) -> Self {
-        Self { name: name.to_string(), path: path.to_path_buf() }
-    }
-}
-
 impl EventProvider for TextFileProvider {
     fn name(&self) -> String {
         self.name.clone()
     }
 
     fn get_events(&self, filter: &EventFilter, events: &mut Vec<Event>) {
+        log::info!("Reading from {}", &self.path.display());
+        
         let f = File::open(self.path.clone()).expect("path to text file");
         let reader = BufReader::new(f);
         let mut state = ReadingState::Date;
@@ -54,7 +49,7 @@ impl EventProvider for TextFileProvider {
         let mut category_string = String::new();
 
         for line_result in reader.lines() {
-            let line = line_result.expect("read line");
+            let line = line_result.expect("wanted to read a line");
             match state {
                 ReadingState::Date => {
                     date_string = line;
@@ -75,32 +70,28 @@ impl EventProvider for TextFileProvider {
                         let year_string = format!("{:04}-", today.year());
                         date_string = date_string.replace("--", &year_string);
                     }
-                    let event: Event;
+
                     match NaiveDate::parse_from_str(&date_string, "%F") {
                         Ok(date) => {
                             let category = Category::from_str(&category_string).unwrap();
-                            if is_yearless {
-                                event = Event::new_annual(
-                                    MonthDay::new(date.month(), date.day()),
-                                    description.clone(), 
-                                    category);
+                            let event_date = if is_yearless {
+                                let month_day = MonthDay::new(date.month(), date.day());
+                                EventDate::Annual(month_day)
                             } else {
-                                event = Event::new_singular( 
-                                    date, 
-                                    description.clone(), 
-                                    category);
-                            }
+                                EventDate::Singular(date)
+                            };
+                            let event = Event::new(event_date, description.clone(), category);
                             if filter.accepts(&event) {
                                 events.push(event);
                             }
                         },
                         Err(_) => {
-                            eprintln!("Invalid date '{}'", date_string);
+                            log::error!("Invalid date '{}'", date_string);
                         }
                     }
                     state = ReadingState::Date;
                 },
-            }
+            } // match state
         }
     }
 
@@ -111,12 +102,6 @@ impl EventProvider for TextFileProvider {
             return Err(EventProviderError::OperationNotSupported);
         }
 
-        // Text file provider only supports adding singular events
-        let is_singular = matches!(event.kind(), EventKind::Singular { .. });
-        if !is_singular {
-            return Err(EventProviderError::OperationNotSupported);
-        }
-
         let file = OpenOptions::new()
             .append(true)
             .open(self.path.clone())
@@ -124,22 +109,22 @@ impl EventProvider for TextFileProvider {
 
         let mut writer = BufWriter::new(file);
 
-        let date_string = format!("{:04}-{}", event.year(), event.month_day());
-        if let Err(_) = writeln!(writer, "{}", date_string) {
-            return Err(EventProviderError::OperationFailed);
+        return if event.is_singular() {
+            let _ = writeln!(writer, "{}", event.date());
+            let _ = writeln!(writer, "{}", event.description());
+            let _ = writeln!(writer, "{}", event.category());
+            let _ = writeln!(writer, "");
+            Ok(())
+        } else {
+            Err(EventProviderError::OperationNotSupported)
         };
-        if let Err(_) = writeln!(writer, "{}", event.description()) {
-            return Err(EventProviderError::OperationFailed);
-        };
-        if let Err(_) = writeln!(writer, "{}", event.category()) {
-            return Err(EventProviderError::OperationFailed);
-        };
-        if let Err(_) = writeln!(writer, "") {
-            return Err(EventProviderError::OperationFailed);
-        }
-
-        Ok(())
     }
 
-    fn kind(&self) -> String { String::from("text") }
+    fn kind(&self) -> String {
+        String::from("text")
+    }
+
+    fn is_active(&self) -> bool {
+        self.is_active
+    }
 }

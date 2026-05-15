@@ -7,23 +7,27 @@ use chrono::{NaiveDate, Local};
 use xml::reader::{EventReader, XmlEvent};
 use log;
 
-use crate::EventProvider;
-use crate::events::{Event, Category};
+use crate::events::{Event, EventDate, Category};
+use crate::providers::{EventProvider, EventProviderError};
 use crate::filters::EventFilter;
-use crate::providers::EventProviderError;
 
-pub struct XMLFileProvider {
+pub struct XmlFileProvider {
     name: String,
     path: PathBuf,
+    is_active: bool,
 }
 
-impl XMLFileProvider {
-    pub fn new(name: &str, path: &Path) -> Self {
-        Self { name: name.to_string(), path: path.to_path_buf() }
+impl XmlFileProvider {
+    pub fn new(name: &str, path: &Path, is_active: bool) -> Self {
+        Self { 
+            name: name.to_string(), 
+            path: path.to_path_buf(),
+            is_active,
+        }
     }
 }
 
-impl EventProvider for XMLFileProvider {
+impl EventProvider for XmlFileProvider {
     fn name(&self) -> String {
         self.name.clone()
     }
@@ -34,11 +38,17 @@ impl EventProvider for XMLFileProvider {
         let parser = EventReader::new(file);
 
         // Set up some reusable event parts with default values.
-        // When we encounter XML elements, we set these values to the content.
-        let mut current_date: NaiveDate = Local::now().date_naive();
-        let mut current_description: String = String::new();
-        let mut current_category: Category = Category::from_primary("test");
-        let mut category_string = String::new();
+        // When we encounter XML elements, we set these values with their content.
+        let today: NaiveDate = Local::now().date_naive();
+        let mut event_date = EventDate::Singular(today);
+
+        // Holds the description of the pending event
+        let mut pending_description: String = String::new();
+
+        let mut event_category: Category = Category::from_primary("test");
+        let mut pending_category_string = String::new();
+
+        let mut new_events: Vec<Event> = Vec::new();
 
         let mut content = String::new();  // also reused inside the loop
         for e in parser {
@@ -46,65 +56,64 @@ impl EventProvider for XMLFileProvider {
                 Ok(XmlEvent::StartElement { name, .. }) => {
                     content.clear();
                     match name.local_name.as_str() {
-                        "description" => current_description.clear(),
-                        "category" => category_string.clear(),
+                        "events" => new_events.clear(),
+                        "description" => pending_description.clear(),
+                        "category" => pending_category_string.clear(),
                         _ => {}
                     }
-                }
-
+                },
                 Ok(XmlEvent::EndElement { name }) => {
+                    log::debug!("end element {}", name);
                     match name.local_name.as_str() {
-                        "events" => return,
+                        "events" => events.append(&mut new_events),
                         "event" => {
-                            let event = Event::new_singular(
-                                current_date, 
-                                current_description.clone(), 
-                                current_category.clone());
+                            let event = Event::new(
+                                event_date, 
+                                pending_description.clone(), 
+                                event_category.clone());
                             log::debug!("New event: {}", &event);
                             if filter.accepts(&event) {
-                                events.push(event);
+                                new_events.push(event);
                             } else {
                                 log::debug!("Filter rejects event");
                             }
                         },
                         "date" => {
-                            log::debug!("end element 'date': content={}", &content);
-                            current_date = NaiveDate::parse_from_str(&content, "%F")
+                            log::debug!("content = '{}'", &content);
+                            event_date = EventDate::parse(&content)
                                 .expect("invalid date");
                             content.clear();
                         },
                         "description" => {
-                            current_description = content.clone();
+                            pending_description = content.clone();
                             content.clear();
                         },
                         "category" => {
-                            log::debug!("end category, category_string = '{}'", &category_string);
-                            current_category = Category::from_str(&category_string).unwrap();
+                            log::debug!("pending_category_string = '{}'", 
+                                &pending_category_string);
+                            event_category = Category::from_str(&pending_category_string).unwrap();
                         },
                         "primary" => {
-                            log::debug!("end element 'primary' content = '{}'", &content);
-                            category_string.push_str(&content);
+                            log::debug!("content = '{}'", &content);
+                            pending_category_string.push_str(&content);
                         },
                         "secondary" => {
-                            log::debug!("end element 'secondary' content = '{}'", &content);
-                            category_string.push('/');
-                            category_string.push_str(&content);
+                            log::debug!("content = '{}'", &content);
+                            pending_category_string.push('/');
+                            pending_category_string.push_str(&content);
                         },
                         _ => ()
                     }
-                }
-
-                Ok(XmlEvent::Characters(s)) => {
-                    log::debug!("Characters: '{}'", s);
-                    content.push_str(&s);
-                }
-
+                },
+                Ok(XmlEvent::Characters(text)) => {
+                    log::debug!("characters: '{}'", text);
+                    content.push_str(&text);
+                },
                 Err(e) => {
                     eprintln!("Error: {e}");
                     break;
-                }
-
-                _ => {}
+                },
+                _ => {},
             }
         }
     }
@@ -116,4 +125,8 @@ impl EventProvider for XMLFileProvider {
     }
 
     fn kind(&self) -> String { String::from("XML") }
+
+    fn is_active(&self) -> bool {
+        self.is_active
+    }
 }

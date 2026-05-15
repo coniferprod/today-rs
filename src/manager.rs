@@ -5,15 +5,22 @@ use url::Url;
 
 use crate::events::Event;
 use crate::filters::EventFilter;
-use crate::ProviderConfig;
+use crate::Config;
 use crate::providers::{
     EventProvider,
     textfile::TextFileProvider,
     csvfile::CSVFileProvider,
     sqlite::SQLiteProvider,
     web::WebProvider,
-    xmlfile::XMLFileProvider,
+    xmlfile::XmlFileProvider,
 };
+
+pub struct ProviderInfo {
+    pub name: String,
+    pub kind: String,
+    pub is_add_supported: bool,
+    pub is_active: bool,
+}
 
 pub struct EventManager {
     config_path: PathBuf,
@@ -29,55 +36,75 @@ impl EventManager {
         }
     }
 
-    pub fn add_provider(&mut self, config: &ProviderConfig) -> bool {
-        let path = self.config_path.join(&config.resource);
-        match config.kind.as_str() {
-            "text" => {
-                let provider = TextFileProvider::new(&config.name, &path);
-                self.providers.push(Box::new(provider));
-                true
-            },
-            "csv" => {
-                let provider = CSVFileProvider::new(&config.name, &path);
-                self.providers.push(Box::new(provider));
-                true
-            },
-            "sqlite" => {
-                let provider = SQLiteProvider::new(&config.name, &path);
-                self.providers.push(Box::new(provider));
-                true
-            },
-            "web" => {
-                match Url::parse(&config.resource) {
-                    Ok(url) => {
-                        let provider = WebProvider::new(&config.name, &url);
-                        self.providers.push(Box::new(provider));
-                        true
-                    },
-                    Err(e) => {
-                        eprintln!("Error in URL for provider '{}': {}",
-                            &config.name, e);
-                        false
+    pub fn create_providers(&mut self, config: &Config) {
+        for cfg in config.providers.iter() {
+            let found = self.providers.iter().any(|p| p.name() == cfg.name);
+            if found {
+                eprintln!("Event provider {} already exists", &cfg.name);
+                continue;
+            }
+
+            let path = self.config_path.join(&cfg.resource);
+            match cfg.kind.as_str() {
+                "text" => {
+                    let provider = TextFileProvider::new(
+                        &cfg.name, 
+                        &path, 
+                        cfg.is_active.unwrap_or(true));
+                    self.providers.push(Box::new(provider));
+                },
+                "csv" => {
+                    let provider = CSVFileProvider::new(
+                        &cfg.name, 
+                        &path,
+                        cfg.is_active.unwrap_or(true));
+                    self.providers.push(Box::new(provider));
+                },
+                "sqlite" => {
+                    let provider = SQLiteProvider::new(
+                        &cfg.name, 
+                        &path,
+                        cfg.is_active.unwrap_or(true));
+                    self.providers.push(Box::new(provider));
+                },
+                "web" => {
+                    match Url::parse(&cfg.resource) {
+                        Ok(url) => {
+                            let provider = WebProvider::new(
+                                &cfg.name, 
+                                &url,
+                                cfg.is_active.unwrap_or(true));
+                            self.providers.push(Box::new(provider));
+                        },
+                        Err(e) => {
+                            eprintln!("Error in URL for provider {}: {}",
+                                &cfg.name, e);
+                        }
                     }
+                },
+                "xml" => {
+                    let provider = XmlFileProvider::new(
+                        &cfg.name, 
+                        &path,
+                        cfg.is_active.unwrap_or(true));
+                    self.providers.push(Box::new(provider));
+                },
+                _ => {
+                    eprintln!("Unable to make provider: {:?}", cfg);
                 }
-            },
-            "xml" => {
-                let provider = XMLFileProvider::new(&config.name, &path);
-                self.providers.push(Box::new(provider));
-                true
-            },
-            _ => {
-                eprintln!("Unable to make provider: {:?}", config);
-                false
             }
         }
     }
 
-    pub fn get_providers(&self) -> Vec<(String, bool)> {
-        let mut result: Vec<(String, bool)> = Vec::new();
+    pub fn get_provider_info(&self) -> Vec<ProviderInfo> {
+        let mut result = Vec::new();
 
         for provider in &self.providers {
-            result.push((provider.name(), provider.is_add_supported()));
+            result.push(ProviderInfo {
+                name: provider.name(), 
+                kind: provider.kind(),
+                is_add_supported: provider.is_add_supported(),
+                is_active: provider.is_active() });
         }
 
         result
@@ -103,7 +130,7 @@ impl EventManager {
         result
     }
 
-    pub fn add_event(&self, provider_name: &str, event: &Event) {
+    pub fn add_event(&self, provider_name: &str, event: &Event) -> bool {
         // Find provider by name
         let mut provider: Option<&dyn EventProvider> = None;
         for p in &self.providers {
@@ -117,12 +144,15 @@ impl EventManager {
             Some(p) => {
                 if p.is_add_supported() {
                     let _ = p.add_event(event);
+                    return true;
                 } else {
                     println!("Adding events is not supported for provider '{}'", p.name());
+                    return false;
                 }
             },
             None => {
                 eprintln!("Unknown event provider '{}'", provider_name);
+                return false;
             }
         }
     }

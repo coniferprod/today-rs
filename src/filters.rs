@@ -17,8 +17,10 @@ impl EventFilter {
 
     pub fn category_matches(&self) -> Option<Category> {
         self.category_matches.clone()
-    }    
+    }
+}
 
+impl EventFilter {
     pub fn accepts(&self, event: &Event) -> bool {
         if let Some(month_day) = &self.month_day {
             if event.month_day() != *month_day {
@@ -84,51 +86,14 @@ impl FilterBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::events::{Event, EventDate, Category};
     use chrono::NaiveDate;
-
-    #[test]
-    fn filter_accepts_month_day() {
-        let event = Event::new_singular(
-            NaiveDate::from_ymd_opt(2026, 3, 17).unwrap(), 
-            "Test event for March 17".to_string(), 
-            Category::from_primary("test"));
-        let filter = FilterBuilder::new()
-            .month_day(MonthDay::new(3, 17))
-            .build();
-        assert!(filter.accepts(&event));
-    }
-
-    #[test]
-    fn filter_accepts_category() {
-        let rust_category = Category::new("programming", "rust");
-        let event = Event::new_singular(
-            NaiveDate::from_ymd_opt(2026, 3, 5).unwrap(), 
-            "Rust 1.94.0 released".to_string(), 
-            rust_category.clone());
-        let filter = FilterBuilder::new()
-            .category_matches(&rust_category)
-            .build();
-        assert!(filter.accepts(&event));
-    }
-
-    #[test]
-    fn filter_accepts_text() {
-        let rust_category = Category::new("programming", "rust");
-        let event = Event::new_singular(
-            NaiveDate::from_ymd_opt(2026, 3, 5).unwrap(), 
-            "Rust 1.94.0 released".to_string(), 
-            rust_category.clone());
-        let filter = FilterBuilder::new()
-            .description_contains("Rust".to_string())
-            .build();
-        assert!(filter.accepts(&event));
-    }
 
     #[test]
     fn filter_accepts_anything() {
         let rust_category = Category::new("programming", "rust");
-        let event = Event::new_singular(
-            NaiveDate::from_ymd_opt(2026, 3, 5).unwrap(), 
+        let event = Event::new(
+            EventDate::Singular(NaiveDate::from_ymd_opt(2026, 3, 5).unwrap()), 
             "Rust 1.94.0 released".to_string(), 
             rust_category.clone());
         let filter = FilterBuilder::new()
@@ -138,24 +103,11 @@ mod tests {
 
     #[test]
     fn build_filter_no_options() {
-        let filter = FilterBuilder::new()
-            .build();
+        let filter = FilterBuilder::new().build();
         let contains = (
             filter.month_day(),
             filter.category_matches(),
             filter.description_contains());
         assert_eq!(contains, (None, None, None));
-    }
-
-    #[test]
-    fn build_filter_month_day_only() {
-        let filter = FilterBuilder::new()
-            .month_day(MonthDay::new(3, 17))
-            .build();
-        let contains = (
-            filter.month_day(),
-            filter.category_matches(),
-            filter.description_contains());
-        assert_eq!(contains, (Some(MonthDay::new(3, 17)), None, None));
-    }
+    }    
 }

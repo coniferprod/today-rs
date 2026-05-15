@@ -6,9 +6,10 @@ use chrono::{NaiveDate, Local, Datelike};
 use clap::{Parser, Subcommand};
 use log;
 
-use today::{run, add_event, Config, create_providers};
-use today::events::{Event, Category, MonthDay};
+use today::{run, run_providers, run_add, Config};
+use today::events::{Event, EventDate, Category, MonthDay};
 use today::filters::FilterBuilder;
+use today::manager::EventManager;
 
 #[derive(Subcommand, Debug, Clone)]
 enum Command {
@@ -53,7 +54,7 @@ fn main() {
     let args = Args::parse();
 
     let month_day = if let Some(md) = args.date {
-        MonthDay::from_str(&md)
+        MonthDay::from_str(&md).unwrap()
     } else { 
         let today: NaiveDate = Local::now().date_naive();
         MonthDay::new(today.month(), today.day())
@@ -74,25 +75,18 @@ fn main() {
             let config: Config = toml::from_str(&config_str).expect("valid configuration file");
             log::debug!("config: {:#?}", config);
 
+            let mut manager = EventManager::new(&path);
+            manager.create_providers(&config);
+
             match args.cmd {
-                Some(Command::Providers) => {
-                    let providers = create_providers(&config, &path);
-                    for provider in providers {
-                        println!(
-                            "{}{}", 
-                            provider.name(),
-                            if provider.is_add_supported() { "*" } else { "" });                        
-                    }
-                },
+                Some(Command::Providers) => run_providers(&manager),
 
                 Some(Command::Add { provider, date, description, category }) => {
-                    log::debug!("provider_name = '{}'  date = '{}'  description = '{}'  category = '{}'",
-                        provider, date, description, category);
                     let category = Category::from_str(&category).unwrap();
                     let date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d").unwrap();
-                    let event = Event::new_singular(date, description, category);
-                    add_event(&config, &path, &provider, &event);
-                },
+                    let event = Event::new(EventDate::Singular(date), description, category);
+                    run_add(&manager, &provider, &event);
+                },                
 
                 _ => {  // no subcommand given, normal run
                     if !args.no_birthday {
@@ -115,7 +109,7 @@ fn main() {
                         log::info!("These exclusions currently have no effect.");
                     }
 
-                    if let Err(e) = run(&config, &path, &filter) {
+                    if let Err(e) = run(&manager, &filter) {
                         eprintln!("Error running program: {}", e);
                         return;
                     }
