@@ -29,7 +29,8 @@ pub struct EventManager {
 
 impl EventManager {
     pub fn new(config_path: &Path) -> Self {
-        log::debug!("Making new EventManager, config_path = '{:?}'", config_path.to_str());
+        log::debug!("Making new EventManager, config_path = '{:?}'", 
+            config_path.to_str());
         Self {
             config_path: config_path.to_path_buf(),
             providers: Vec::new(),
@@ -118,6 +119,11 @@ impl EventManager {
         let mut count = 0;
 
         for provider in &self.providers {
+            if !provider.is_active() {     // OK, don't bother with this provider
+                log::info!("Provider '{}' is not active, skipping",
+                    provider.name());
+                continue;
+            }
             provider.get_events(&filter, &mut result);
             let new_count = result.len();
             log::info!(
@@ -142,11 +148,16 @@ impl EventManager {
 
         match provider {
             Some(p) => {
-                if p.is_add_supported() {
-                    let _ = p.add_event(event);
-                    return true;
+                if p.is_active() {
+                    if p.is_add_supported() {
+                        let _ = p.add_event(event);
+                        return true;
+                    } else {
+                        eprintln!("Adding events is not supported for provider '{}'", p.name());
+                        return false;
+                    }
                 } else {
-                    println!("Adding events is not supported for provider '{}'", p.name());
+                    eprintln!("Provider '{}' is not active", p.name());
                     return false;
                 }
             },
