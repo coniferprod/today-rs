@@ -1,5 +1,14 @@
 # today-rs
 
+Today is a Rust application that shows you information about historical events
+and days observed on the current date (or some other date you choose).
+
+The development of the program is described in the book
+[Learn Rust Programming Today](https://www.coniferproductions.com/books/learn-rust/) by Jere Käpyaho (Books on Demand, 2026).
+
+This repository starts where the book ends. Over time, the program will be developed
+further.
+
 ## Usage information
 
     Usage: today [OPTIONS] [COMMAND]
@@ -36,3 +45,16 @@ Adds an event to an event provider
 
     Options:
     -h, --help  Print help
+
+## Data files
+
+The `data` directory contains some sample data files in various
+formats. It is easy to make your own data files. There is also
+a web service that can be used to test the program with some fake
+events.
+
+## Configuration file
+
+Check out the LRPT book for more details on the configuration file
+and its relation to the data formats. More information will be provided
+here later.
