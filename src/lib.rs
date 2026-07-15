@@ -7,10 +7,9 @@ pub mod birthday;
 pub mod events;
 pub mod providers;
 pub mod filters;
-pub mod manager;
+pub mod manager; // 1.3.0
 
 use std::error::Error;
-use std::path::Path;
 
 use serde::Deserialize;
 use log;
@@ -18,15 +17,15 @@ use pluralizer::pluralize;
 
 use crate::events::Event;
 use crate::providers::EventProvider;
-use crate::filters::EventFilter;
-use crate::manager::EventManager;
+use crate::filters::EventFilter;  // 0.32.0
+use crate::manager::EventManager;  // 1.3.0
 
 #[derive(Deserialize, Debug)]
 pub struct ProviderConfig {
     pub name: String,
-    kind: String,
-    resource: String,
-    is_active: Option<bool>,
+    pub kind: String,
+    pub resource: String,
+    pub is_active: Option<bool>, // 1.3.0: new setting
 }
 
 #[derive(Deserialize, Debug)]
@@ -94,3 +93,4 @@ pub fn run(manager: &EventManager, filter: &EventFilter)
 
     Ok(())
 }
+

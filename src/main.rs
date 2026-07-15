@@ -2,13 +2,13 @@ use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
 
+use clap::{Parser, Subcommand};  // 0.34.0
 use chrono::{NaiveDate, Local, Datelike};
-use clap::{Parser, Subcommand};
-use log;
+use log;  // 0.35.0
 
-use today::{run, run_providers, run_add, Config};
-use today::events::{Event, EventDate, Category, MonthDay};
+use today::events::{Event, EventDate, MonthDay, Category};
 use today::filters::FilterBuilder;
+use today::{run, run_add, run_providers, Config};
 use today::manager::EventManager;
 
 #[derive(Subcommand, Debug, Clone)]
@@ -59,7 +59,7 @@ fn main() {
         let today: NaiveDate = Local::now().date_naive();
         MonthDay::new(today.month(), today.day())
     };
-    log::debug!("month_day = {}", month_day);
+    log::debug!("month_day = {:#?}", month_day);
 
     let filter = FilterBuilder::new()
         .month_day(month_day)
@@ -67,12 +67,14 @@ fn main() {
 
     const APP_NAME: &str = "today";
     let config_path = get_config_path(APP_NAME);
-    match config_path {
+    match config_path { 
         Some(path) => {
             let toml_path = path.join(format!("{}.toml", APP_NAME));
-            log::debug!("Looking for configuration file '{}'", &toml_path.display());
-            let config_str = fs::read_to_string(toml_path).expect("existing configuration file");
-            let config: Config = toml::from_str(&config_str).expect("valid configuration file");
+            log::info!("Looking for configuration file '{}'", &toml_path.display());
+            let config_str = fs::read_to_string(&toml_path)
+                .expect("configuration file should exist");
+            let config: Config = toml::from_str(&config_str)
+                .expect("configuration file should be valid");
             log::debug!("config: {:#?}", config);
 
             let mut manager = EventManager::new(&path);
@@ -89,46 +91,30 @@ fn main() {
                 },                
 
                 _ => {  // no subcommand given, normal run
-                    if !args.no_birthday {
-                        today::birthday::handle_birthday();
-                    }
-
-                    // Handle the "exclude categories" option
-                    let mut categories: Vec<Category> = Vec::new();
-                    if let Some(exclude) = args.exclude {
-                        let parts: Vec<&str> = exclude.split(',').collect();
-                        for part in parts.iter() {
-                            let category = Category::from_str(part).unwrap();
-                            categories.push(category);
-                        }
-                        
-                        log::info!("Excluded categories:");
-                        for category in &categories {
-                            log::info!("- {}", category);
-                        }
-                        log::info!("These exclusions currently have no effect.");
-                    }
-
                     if let Err(e) = run(&manager, &filter) {
                         eprintln!("Error running program: {}", e);
                         return;
                     }
                 }
             }
-        }
+        },
         None => {
-            eprintln!("Unable to configure the application");
+            log::error!("Unable to configure the application");
             return;
         }
     }
 }
 
+// Gets the configuration directory path for `app_name`.
+// If the directory does not exist, tries to create it.
+// Returns an optional `PathBuf` containing the directory path,
+// or `None` if the directory can't be created.
 fn get_config_path(app_name: &str) -> Option<PathBuf> {
     if let Some(config_dir) = dirs::config_dir() {
         let config_path = config_dir.join(app_name);
         if !config_path.exists() {
             if let Err(_) = fs::create_dir(&config_path) {
-                eprintln!("Unable to create config directory for {}", app_name);
+                log::error!("Unable to create config directory for {}", app_name);
                 return None;
             }
         }
