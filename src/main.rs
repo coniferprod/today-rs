@@ -91,6 +91,10 @@ fn main() {
                 },                
 
                 _ => {  // no subcommand given, normal run
+                    if !args.no_birthday {
+                        today::birthday::handle_birthday();
+                    }
+
                     if let Err(e) = run(&manager, &filter) {
                         eprintln!("Error running program: {}", e);
                         return;

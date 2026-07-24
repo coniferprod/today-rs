@@ -545,6 +545,8 @@ fn main() {
                 },                
 
                 _ => {  // no subcommand given, normal run
+                    println!("NORMAL RUN");
+                    eprintln!("args.no_birthday = {}", args.no_birthday);
                     if !args.no_birthday {
                         today::birthday::handle_birthday();
                     }
