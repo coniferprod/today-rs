@@ -33,6 +33,15 @@ pub fn handle_birthday() {
     }
 }
 
+fn ordinal_suffix(n: usize) -> String {
+    match n % 10 {
+        1 => "st".to_string(),
+        2 => "nd".to_string(),
+        3 => "rd".to_string(),
+        _ => "th".to_string(),
+    }
+}
+
 fn make_message(day_count: i64) -> String {
     let mut message = String::new();
 
@@ -45,6 +54,12 @@ fn make_message(day_count: i64) -> String {
         }
         if is_palindrome(day_count as u32) {
             message.push_str(" That's a palindrome!");
+        }
+        let fib_ordinal = test_fib(day_count as u32);
+        if fib_ordinal > 0 {
+            message.push_str(
+                &format!(" That's the {}{} Fibonacci number!", 
+                    fib_ordinal, ordinal_suffix(fib_ordinal)));
         }
     } else if day_count < 0 {
         message.push_str("Are you from the future?");
@@ -86,9 +101,39 @@ fn is_palindrome(n: u32) -> bool {
     s.chars().eq(s.chars().rev())
 }
 
+// Check if `n` is a Fibonacci number under 50,000.
+fn test_fib(n: u32) -> usize {
+    let numbers = fib_under_50k();
+    //println!("{:#?}", numbers);
+    for (ordinal, number) in numbers.iter().enumerate() {
+        if n == *number {
+            return ordinal;
+        }
+    }
+    0
+}
+
+fn fib_under_50k() -> Vec<u32> {
+    let mut result = vec![0, 1];
+
+    let mut a = result[1];
+    let mut b = result[0];
+    let mut count = 2;
+
+    while count < 25 {
+        let temp = a + b;
+        b = a;
+        a = temp;
+        result.push(temp);
+        count += 1;
+    }
+
+    result
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::birthday::make_message;
+    use crate::birthday::{fib_under_50k, make_message};
 
     #[test]
     fn make_message_normal() {
@@ -137,5 +182,35 @@ mod tests {
         assert_eq!(
             make_message(22_522),
             "You are 22522 days old. That's a palindrome!");
+    }
+
+    #[test]
+    fn make_message_fib_prime() {
+        assert_eq!(
+            make_message(28_657),
+            "You are 28657 days old. That's a prime number! That's the 23rd Fibonacci number!");
+    }
+
+    #[test]
+    fn make_message_fib() {
+        assert_eq!(
+            make_message(17_711),
+            "You are 17711 days old. That's the 22nd Fibonacci number!");
+    }
+
+    #[test]
+    fn make_message_fib_palindrome() {
+        assert_eq!(
+            make_message(55),
+            "You are 55 days old. That's a palindrome! That's the 10th Fibonacci number!");
+    }
+
+    #[test]
+    fn make_fib() {
+        assert_eq!(
+            fib_under_50k(),
+            vec![0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610,
+                987, 1597, 2584, 4181, 6765, 10946, 17711, 28657, 46368]
+        );
     }
 }
