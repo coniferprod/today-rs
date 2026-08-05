@@ -1,0 +1,4 @@
+[[providers]]
+name = "eu-events"
+kind = "csv"
+resource = "eu-events.csv"
