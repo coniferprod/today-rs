@@ -93,4 +93,3 @@ pub fn run(manager: &EventManager, filter: &EventFilter)
 
     Ok(())
 }
-
