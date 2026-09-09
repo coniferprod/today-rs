@@ -29,7 +29,10 @@ enum Command {
 
         #[arg(short, long, help = "Category of event. Format: primary[/secondary]")]
         category: String,
-    }
+    },
+
+    /// Prints the configuration directory path
+    Configdir,  // note spelling difference from config_dir and ConfigDir
 }
 
 #[derive(Parser)]
@@ -88,7 +91,9 @@ fn main() {
                     let date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d").unwrap();
                     let event = Event::new(EventDate::Singular(date), description, category);
                     run_add(&manager, &provider, &event);
-                },                
+                },
+
+                Some(Command::Configdir) => println!("{}", path.display()),
 
                 _ => {  // no subcommand given, normal run
                     if !args.no_birthday {
