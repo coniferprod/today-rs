@@ -16,11 +16,13 @@ further.
     Commands:
     providers  List all event providers
     add        Adds an event to an event provider
+    configdir  Prints the configuration directory path
     help       Print this message or the help of the given subcommand(s)
 
     Options:
     -d, --date <DATE>        Event date in MMDD format
     -e, --exclude <EXCLUDE>  Categories to exclude, comma-separated (a/b,c/d)
+    -n, --no-birthday        No age calculation or birthday message
     -h, --help               Print help
 
 
@@ -39,12 +41,25 @@ Adds an event to an event provider
 
 ### Providers subcommand
 
-    List all event providers
+Lists all event providers
 
     Usage: today providers
 
     Options:
     -h, --help  Print help
+
+### Configdir subcommand
+
+Displays the configuration directory where you put the data files and
+the TOML configuration file.
+
+    Usage: today configdir
+
+In Linux and macOS, try something like
+
+    ls "$(today configdir)"
+
+to see what you have there, if anything. You may need to create the directory.
 
 ## Data files
 
