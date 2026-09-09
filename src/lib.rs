@@ -14,6 +14,7 @@ use std::error::Error;
 use serde::Deserialize;
 use log;
 use pluralizer::pluralize;
+use chrono::{Datelike, Local};
 
 use crate::events::Event;
 use crate::providers::EventProvider;
@@ -73,8 +74,16 @@ pub fn run(manager: &EventManager, filter: &EventFilter)
         singular_events.reverse();
         println!("On this day in history ({}):", 
             pluralize("event", singular_events.len() as isize, include_count));
+
+        let this_year = Local::now().year();  // save the current year for calculation
         for event in singular_events {
-            println!("{}", event);
+            if event.year() != this_year {
+                let year_diff = this_year - event.year();
+                let years_ago = pluralize("year", year_diff as isize, include_count);
+                println!("{} ({} ago)", event, years_ago);
+            } else {
+                println!("{}", event);
+            }
         }
     } else {
         print_separator = false;
