@@ -56,20 +56,6 @@ fn main() {
 
     let args = Args::parse();
 
-    let month_day = if let Some(md) = args.date {
-        // Filter out anything but base 10 digits
-        let date_string: String = md.chars().filter(|c| c.is_digit(10)).collect();
-        MonthDay::from_str(&date_string).unwrap()
-    } else { 
-        let today: NaiveDate = Local::now().date_naive();
-        MonthDay::new(today.month(), today.day())
-    };
-    log::debug!("month_day = {:#?}", month_day);
-
-    let filter = FilterBuilder::new()
-        .month_day(month_day)
-        .build();
-
     const APP_NAME: &str = "today";
     let config_path = get_config_path(APP_NAME);
     match config_path { 
@@ -101,6 +87,20 @@ fn main() {
                     if !args.no_birthday {
                         today::birthday::handle_birthday();
                     }
+
+                    let month_day = if let Some(md) = args.date {
+                        // Filter out anything but base 10 digits
+                        let date_string: String = md.chars().filter(|c| c.is_digit(10)).collect();
+                        MonthDay::from_str(&date_string).unwrap()
+                    } else { 
+                        let today: NaiveDate = Local::now().date_naive();
+                        MonthDay::new(today.month(), today.day())
+                    };
+                    log::debug!("month_day = {:#?}", month_day);
+
+                    let filter = FilterBuilder::new()
+                        .month_day(month_day)
+                        .build();
 
                     if let Err(e) = run(&manager, &filter) {
                         eprintln!("Error running program: {}", e);
