@@ -25,6 +25,11 @@ further.
     -n, --no-birthday        No age calculation or birthday message
     -h, --help               Print help
 
+### The `BIRTHDATE` environment variable
+
+When starting up, the Today program looks for an environment variable
+called `BIRTHDATE`. It should contain the user's birthday in YYYY-MM-DD
+format.
 
 ### Add subcommand
 
