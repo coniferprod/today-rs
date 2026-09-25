@@ -57,7 +57,9 @@ fn main() {
     let args = Args::parse();
 
     let month_day = if let Some(md) = args.date {
-        MonthDay::from_str(&md).unwrap()
+        // Filter out anything but base 10 digits
+        let date_string: String = md.chars().filter(|c| c.is_digit(10)).collect();
+        MonthDay::from_str(&date_string).unwrap()
     } else { 
         let today: NaiveDate = Local::now().date_naive();
         MonthDay::new(today.month(), today.day())
